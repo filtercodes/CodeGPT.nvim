@@ -101,7 +101,12 @@ function GeminiProvider.handle_response(json, cb)
 end
 
 function GeminiProvider.make_call(payload, cb)
-    local model_name = payload.model or "gemini-1.5-flash"
+    local model_name = payload.model
+    if not model_name or model_name == "" then
+        print("Error: Gemini provider requires a model to be configured for the command.")
+        Api.run_finished_hook()
+        return
+    end
     payload.model = nil -- remove model from payload
     local payload_str = vim.fn.json_encode(payload)
     -- Correct the URL to include the /v1beta path

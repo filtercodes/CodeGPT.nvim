@@ -17,6 +17,9 @@ vim.g["codegpt_api_provider"] = vim.g["codegpt_api_provider"] or "openai"
 -- clears visual selection after completion
 vim.g["codegpt_clear_visual_selection"] = true
 
+-- ensure user commands table exists
+vim.g["codegpt_commands"] = vim.g["codegpt_commands"] or {}
+
 vim.g["codegpt_hooks"] = {
     request_started = nil,
     request_finished = nil,

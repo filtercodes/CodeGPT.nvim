@@ -8,21 +8,6 @@ CodeGPT is a plugin for neovim that provides commands to interact with ChatGPT. 
 * The plugins 'plenary' and 'nui' are also required.
 * OpenAI's tokenizer [tiktoken](https://github.com/openai/tiktoken) is recommended for accurate token count estimate.
 
-Installing with Lazy.
-
-```lua
-{
-    "dpayne/CodeGPT.nvim",
-    dependencies = {
-      'nvim-lua/plenary.nvim',
-      'MunifTanjim/nui.nvim',
-    },
-    config = function()
-        require("codegpt.config")
-    end
-}
-```
-
 Installing with packer.
 
 ```lua
@@ -203,8 +188,7 @@ The default command configuration is:
 
 ```lua
 {
-    model = "gpt-3.5-turbo",
-    max_tokens = 4096,
+    model = "gpt-5-nano",
     temperature = 0.6,
     number_of_choices = 1,
     system_message_template = "",
@@ -303,6 +287,13 @@ vim.g["codegpt_popup_window_options"] = {
   relativenumber = true,
   number = true,
 }
+```
+
+#### Popup window color setup - Vimscript
+
+``` lua
+highlight NormalFloat guibg=#1e222a ctermbg=235
+highlight FloatBorder guifg=#3b82f6 ctermfg=67
 ```
 
 #### Move completion to popup window

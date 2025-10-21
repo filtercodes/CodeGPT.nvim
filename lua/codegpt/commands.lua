@@ -19,8 +19,9 @@ function Commands.run_cmd(command, command_args, text_selection)
     cmd_opts.callback(lines, bufnr, start_row, start_col, end_row, end_col)
   end
 
-	local request = Providers.get_provider().make_request(command, cmd_opts, command_args, text_selection)
-  Providers.get_provider().make_call(request, new_callback)
+  local provider = Providers.get_provider()
+	local request = provider.make_request(command, cmd_opts, command_args, text_selection)
+  provider.make_call(request, new_callback)
 end
 
 function Commands.get_status(...)

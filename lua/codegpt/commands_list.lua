@@ -3,7 +3,6 @@ local Ui = require("codegpt.ui")
 
 local CommandsList = {}
 local cmd_default = {
-    max_tokens = 4096,
     temperature = 0.8,
     number_of_choices = 1,
     system_message_template = "You are a {{language}} coding assistant.",
@@ -11,6 +10,26 @@ local cmd_default = {
     callback_type = "replace_lines",
     allow_empty_text_selection = false,
     extra_params = {}, -- extra parameters sent to the API
+}
+
+local provider_defaults = {
+    openai = {
+        model = "gpt-5-nano",
+        reasoning = { effort = "medium" },
+    },
+    ollama = {
+        model = "deepseek-r1:7b",
+    },
+    anthropic = {
+        model = "claude-haiku-4-5",
+        max_tokens = 1000,
+    },
+    gemini = {
+        model = "gemini-2.5-flash",
+    },
+    groq = {
+        model = "mixtral-8x7b-32768",
+    },
 }
 
 CommandsList.CallbackTypes = {
@@ -38,40 +57,60 @@ CommandsList.CallbackTypes = {
 }
 
 function CommandsList.get_cmd_opts(cmd)
-    local opts = vim.g["codegpt_commands_defaults"][cmd]
-    local user_set_opts = {}
+    -- 1. Start with the plugin's hardcoded defaults for all commands.
+    local opts = vim.deepcopy(cmd_default)
 
+    -- Merge provider defaults
+    local provider_name = string.lower(vim.g.codegpt_api_provider or "openai")
+    if provider_defaults[provider_name] then
+        opts = vim.tbl_extend("force", opts, provider_defaults[provider_name])
+    end
+
+    -- 2. Merge the user's global defaults, if they exist.
     if vim.g["codegpt_global_commands_defaults"] ~= nil then
-        cmd_default = vim.tbl_extend("force", cmd_default, vim.g["codegpt_global_commands_defaults"])
+        opts = vim.tbl_extend("force", opts, vim.g["codegpt_global_commands_defaults"])
     end
 
-    if vim.g["codegpt_commands"] ~= nil then
-        user_set_opts = vim.g["codegpt_commands"][cmd]
-    end
+    -- 3. Get settings from default commands and user-defined commands.
+    local default_cmd_opts = vim.g["codegpt_commands_defaults"][cmd]
+    local user_cmd_opts = (vim.g["codegpt_commands"] or {})[cmd]
 
-    if opts == nil and user_set_opts == nil then
+    -- A command must exist in one of the tables.
+    if default_cmd_opts == nil and user_cmd_opts == nil then
         return nil
-    elseif opts == nil then
-        opts = {}
-    elseif user_set_opts == nil then
-        user_set_opts = {}
-    elseif opts ~= nil and user_set_opts ~= nil then
-        -- merge language_instructions
-        if opts.language_instructions ~= nil and user_set_opts.language_instructions ~= nil then
-            user_set_opts.language_instructions =
-                vim.tbl_extend("force", opts.language_instructions, user_set_opts.language_instructions)
-        end
     end
 
-    opts = vim.tbl_extend("force", opts, user_set_opts)
-    opts = vim.tbl_extend("keep", opts, cmd_default)
+    -- 4. Merge settings, with user settings taking precedence.
+    if default_cmd_opts ~= nil then
+        opts = vim.tbl_extend("force", opts, default_cmd_opts)
+    end
+    if user_cmd_opts ~= nil then
+        opts = vim.tbl_extend("force", opts, user_cmd_opts)
+    end
 
+    -- 5. Ensure a model is configured.
+    if opts.model == nil or opts.model == "" then
+        vim.notify(
+            "CodeGPT: Model not configured for command '"
+                .. cmd
+                .. "'. Please set it in vim.g.codegpt_commands or vim.g.codegpt_global_commands_defaults",
+            vim.log.levels.ERROR
+        )
+        return nil
+    end
+
+    -- 6. Set the correct callback function.
     if opts.callback_type == "custom" then
-        opts.callback = user_set_opts.callback
+        -- The callback function should have been defined in the user's config.
+        -- It's already in `opts` if defined. We just need to ensure it's a function.
+        if type(opts.callback) ~= "function" then
+            vim.notify("Custom callback for command '" .. cmd .. "' is not a function.", vim.log.levels.ERROR)
+            return nil
+        end
     else
         opts.callback = CommandsList.CallbackTypes[opts.callback_type]
     end
-
+    print("--- CodeGPT Debug: Loaded model -> " .. opts.model .. " ---")
     return opts
 end
 

@@ -21,13 +21,9 @@ function AnthropicProvider.make_request(command, cmd_opts, command_args, text_se
         cmd_opts)
     local messages = generate_messages(command, cmd_opts, command_args, text_selection)
 
-    -- context window is 100k-200k tokens
-    -- but the output is fixed at 4096 tokens
-    local max_tokens = 4096
-
     local request = {
         temperature = cmd_opts.temperature or 1.0,
-        max_tokens = max_tokens,
+        max_tokens = cmd_opts.max_tokens,
         model = cmd_opts.model,
         system = system_message,
         messages = messages,
@@ -47,7 +43,7 @@ function AnthropicProvider.make_headers()
 
     return {
         ["Content-Type"] = "application/json",
-        ["X-API-Key"] = api_key,
+        ["x-api-key"] = api_key,
         ["anthropic-version"] = "2023-06-01",
     }
 end

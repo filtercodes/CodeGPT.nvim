@@ -5,50 +5,13 @@ local Api = require("codegpt.api")
 
 OpenAIProvider = {}
 
-local function generate_messages(command, cmd_opts, command_args, text_selection)
-    local system_message = Render.render(command, cmd_opts.system_message_template, command_args, text_selection,
-        cmd_opts)
+function OpenAIProvider.make_request(command, cmd_opts, command_args, text_selection)
     local user_message = Render.render(command, cmd_opts.user_message_template, command_args, text_selection, cmd_opts)
 
-    local messages = {}
-    if system_message ~= nil and system_message ~= "" then
-        table.insert(messages, { role = "system", content = system_message })
-    end
-
-    if user_message ~= nil and user_message ~= "" then
-        table.insert(messages, { role = "user", content = user_message })
-    end
-
-    return messages
-end
-
-local function get_max_tokens(max_tokens, messages)
-    local ok, total_length = Utils.get_accurate_tokens(vim.fn.json_encode(messages))
-
-    if not ok then
-        for _, message in ipairs(messages) do
-            total_length = total_length + string.len(message.content)
-            total_length = total_length + string.len(message.role)
-        end
-    end
-
-    if total_length >= max_tokens then
-        error("Total length of messages exceeds max_tokens: " .. total_length .. " > " .. max_tokens)
-    end
-
-    return max_tokens - total_length
-end
-
-function OpenAIProvider.make_request(command, cmd_opts, command_args, text_selection)
-    local messages = generate_messages(command, cmd_opts, command_args, text_selection)
-    local max_tokens = get_max_tokens(cmd_opts.max_tokens, messages)
-
     local request = {
-        temperature = cmd_opts.temperature,
-        n = cmd_opts.number_of_choices,
         model = cmd_opts.model,
-        messages = messages,
-        max_tokens = max_tokens,
+        input = user_message,
+        reasoning = cmd_opts.reasoning,
     }
 
     request = vim.tbl_extend("force", request, cmd_opts.extra_params)
@@ -58,23 +21,32 @@ end
 local function curl_callback(response, cb)
     local status = response.status
     local body = response.body
+
     if status ~= 200 then
         body = body:gsub("%s+", " ")
         print("Error: " .. status .. " " .. body)
+        Api.run_finished_hook()
         return
     end
 
     if body == nil or body == "" then
         print("Error: No body")
+        Api.run_finished_hook()
         return
     end
 
     vim.schedule_wrap(function(msg)
-        local json = vim.fn.json_decode(msg)
+        local ok, json = pcall(vim.fn.json_decode, msg)
+        if not ok or json == vim.NIL then
+            print("Error: Failed to decode API response. Body was:")
+            print(msg)
+            Api.run_finished_hook()
+            return
+        end
         OpenAIProvider.handle_response(json, cb)
     end)(body)
 
-    Api.run_finished_hook()
+    -- Api.run_finished_hook()
 end
 
 function OpenAIProvider.make_headers()
@@ -85,18 +57,30 @@ function OpenAIProvider.make_headers()
         )
     end
 
-    return { Content_Type = "application/json", Authorization = "Bearer " .. token }
+    return { ["Content-Type"] = "application/json", Authorization = "Bearer " .. token, ["User-Agent"] = "CodeGPT-Lua" }
 end
 
 function OpenAIProvider.handle_response(json, cb)
     if json == nil then
         print("Response empty")
-    elseif json.error then
-        print("Error: " .. json.error.message)
-    elseif not json.choices or 0 == #json.choices or not json.choices[1].message then
-        print("Error: " .. vim.fn.json_encode(json))
+
+    -- FIX: Check if json.error is a REAL error, not just 'null'
+    elseif json.error and json.error ~= vim.NIL then
+        if type(json.error) == "table" and json.error.message then
+            print("Error: " .. json.error.message)
+        else
+            print("Error: " .. tostring(json.error))
+        end
+
+    -- No real error, so now we process the output
     else
-        local response_text = json.choices[1].message.content
+        local response_text
+        if json.output and json.output[2] and json.output[2].content and json.output[2].content[1] and json.output[2].content[1].text then
+            response_text = json.output[2].content[1].text
+        else
+            print("Error: Unexpected GPT-5 response format: " .. vim.fn.json_encode(json))
+            return
+        end
 
         if response_text ~= nil then
             if type(response_text) ~= "string" or response_text == "" then
@@ -116,9 +100,12 @@ function OpenAIProvider.handle_response(json, cb)
 end
 
 function OpenAIProvider.make_call(payload, cb)
+    local url = "https://api.openai.com/v1/responses"
     local payload_str = vim.fn.json_encode(payload)
-    local url = vim.g["codegpt_chat_completions_url"]
     local headers = OpenAIProvider.make_headers()
+
+    headers["Content-Length"] = #payload_str
+
     Api.run_started_hook()
     curl.post(url, {
         body = payload_str,
