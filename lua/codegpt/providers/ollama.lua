@@ -23,24 +23,11 @@ local function generate_messages(command, cmd_opts, command_args, text_selection
     return messages
 end
 
-local function get_max_tokens(max_tokens, prompt)
-    local ok, total_length = Utils.get_accurate_tokens(prompt)
-
-    if total_length >= max_tokens then
-        error("Total length of messages exceeds max_tokens: " .. total_length .. " > " .. max_tokens)
-    end
-
-    return max_tokens - total_length
-end
-
 function OllaMaProvider.make_request(command, cmd_opts, command_args, text_selection)
-    -- NOTE Do not use the system message for now
     local messages = generate_messages(command, cmd_opts, command_args, text_selection)
-    local max_tokens = get_max_tokens(cmd_opts.max_tokens, prompt)
 
     local request = {
         temperature = cmd_opts.temperature,
-        max_tokens= max_tokens,
         model = cmd_opts.model,
         messages = messages,
         stream = false,
@@ -58,8 +45,8 @@ function OllaMaProvider.handle_response(json, cb)
         print("Response empty")
     elseif json.done == nil or json.done == false then
         print("Response is incomplete " .. vim.fn.json_encode(json))
-    elseif json.message.content == nil then
-        print("Error: No response")
+    elseif json.message == nil or json.message.content == nil then
+        print("Error: No response content. Full response: " .. vim.fn.json_encode(json))
     else
         local response_text = json.message.content
 
@@ -104,8 +91,8 @@ end
 
 function OllaMaProvider.make_call(payload, cb)
     local payload_str = vim.fn.json_encode(payload)
-    local default_url =  "http://localhost:11434/api/chat"
-    local url = vim.g["codegpt_chat_completions_url"] or default_url
+    -- Use a specific vim variable for the ollama url, not the openai one.
+    local url = vim.g["codegpt_ollama_url"] or "http://localhost:11434/api/chat"
     local headers = OllaMaProvider.make_headers()
     Api.run_started_hook()
     curl.post(url, {

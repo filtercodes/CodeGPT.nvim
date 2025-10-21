@@ -104,6 +104,7 @@ function GeminiProvider.make_call(payload, cb)
     local model_name = payload.model or "gemini-1.5-flash"
     payload.model = nil -- remove model from payload
     local payload_str = vim.fn.json_encode(payload)
+    -- Correct the URL to include the /v1beta path
     local url = "https://generativelanguage.googleapis.com/v1beta/models/" .. model_name .. ":generateContent"
     local headers = GeminiProvider.make_headers()
     Api.run_started_hook()
