@@ -3,7 +3,6 @@ local Ui = require("codegpt.ui")
 
 local CommandsList = {}
 local cmd_default = {
-    model = "gpt-3.5-turbo",
     max_tokens = 4096,
     temperature = 0.8,
     number_of_choices = 1,
