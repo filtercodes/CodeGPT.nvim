@@ -64,7 +64,7 @@ function CommandsList.get_cmd_opts(cmd)
     end
 
     opts = vim.tbl_extend("force", opts, user_set_opts)
-    opts = vim.tbl_extend("force", cmd_default, opts)
+    opts = vim.tbl_extend("keep", opts, cmd_default)
 
     if opts.callback_type == "custom" then
         opts.callback = user_set_opts.callback
