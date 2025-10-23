@@ -88,7 +88,7 @@ A full list of overrides
 
 | name                    | default         | description                                                                                                                                                       |
 |-------------------------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| model                   | "gpt-3.5-turbo" | The model to use.                                                                                                                                                 |
+| model                   | "gpt-5-nano" | The model to use.                                                                                                                                                 |
 | max_tokens              | 4096            | The maximum number of tokens to use including the prompt tokens.                                                                                                  |
 | temperature             | 0.6             | 0 -> 1, what sampling temperature to use.                                                                                                                         |
 | system_message_template | ""              | Helps set the behavior of the assistant.                                                                                                                          |
