@@ -11,13 +11,13 @@ if vim.g["codegpt_openai_api_provider"] and #vim.g["codegpt_openai_api_provider"
     vim.g["codegpt_api_provider"] = vim.g["codegpt_openai_api_provider"]
 end
 
--- alternative provider
+-- Alternative provider
 vim.g["codegpt_api_provider"] = vim.g["codegpt_api_provider"] or "openai"
 
--- clears visual selection after completion
+-- Clears visual selection after completion
 vim.g["codegpt_clear_visual_selection"] = true
 
--- ensure user commands table exists
+-- Ensure user commands table exists
 vim.g["codegpt_commands"] = vim.g["codegpt_commands"] or {}
 
 vim.g["codegpt_hooks"] = {
@@ -33,7 +33,7 @@ vim.g["codegpt_wrap_popup_text"] = true
 
 vim.g["codegpt_popup_window_options"] = {}
 
--- set the filetype of a text popup is markdown
+-- Set the filetype of a text popup is markdown
 vim.g["codegpt_text_popup_filetype"] = "markdown"
 
 -- Set the type of ui to use for the popup, options are "popup", "vertical" or "horizontal"
@@ -44,6 +44,12 @@ vim.g["codegpt_horizontal_popup_size"] = "20%"
 
 -- Set the width of the vertical popup
 vim.g["codegpt_vertical_popup_size"] = "20%"
+
+-- Set timeout for chat history
+vim.g["codegpt_chat_history_timeout"] = 300
+
+-- Set max messages for chat history
+vim.g["codegpt_chat_history_max_messages"] = 20
 
 vim.g["codegpt_commands_defaults"] = {
     ["completion"] = {
@@ -113,6 +119,10 @@ vim.g["codegpt_commands_defaults"] = {
         system_message_template = "You are a general assistant to a software developer.",
         user_message_template = "{{command_args}}",
         callback_type = "text_popup",
+        allow_empty_text_selection = true,
+    },
+    ["clear"] = {
+        allow_empty_text_selection = true,
     },
 }
 

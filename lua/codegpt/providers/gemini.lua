@@ -2,32 +2,38 @@ local curl = require("plenary.curl")
 local Render = require("codegpt.template_render")
 local Utils = require("codegpt.utils")
 local Api = require("codegpt.api")
+local History = require("codegpt.history")
 
 local GeminiProvider = {}
 
-local function generate_messages(command, cmd_opts, command_args, text_selection)
-    local user_message = Render.render(command, cmd_opts.user_message_template, command_args, text_selection, cmd_opts)
-    return {
-        {
-            role = "user",
-            parts = {
-                {
-                    text = user_message
-                }
-            }
-        }
-    }
-end
+function GeminiProvider.make_request(command, cmd_opts, command_args, text_selection, bufnr)
+    -- Get the history of past messages
+    local past_messages = History.get_messages(bufnr)
 
-function GeminiProvider.make_request(command, cmd_opts, command_args, text_selection)
-    local messages = generate_messages(command, cmd_opts, command_args, text_selection)
+    -- Render new user message
+    local new_user_message_text = Render.render(command, cmd_opts.user_message_template, command_args, text_selection, cmd_opts)
 
+    -- Payload
+    local messages_for_api = {}
+    for _, msg in ipairs(past_messages) do
+        local role = (msg.role == "assistant" and "model" or "user")
+        table.insert(messages_for_api, {
+            role = role,
+            parts = { { text = msg.content } },
+        })
+    end
+    table.insert(messages_for_api, {
+        role = "user",
+        parts = { { text = new_user_message_text } },
+    })
+
+    -- Request object
     local request = {
-        contents = messages,
+        contents = messages_for_api,
         model = cmd_opts.model,
     }
 
-    return request
+    return request, new_user_message_text
 end
 
 function GeminiProvider.make_headers()
@@ -46,7 +52,7 @@ function GeminiProvider.make_headers()
 end
 
 
-local function curl_callback(response, cb)
+local function curl_callback(response, user_message_text, cb, bufnr)
     local status = response.status
     local body = response.body
     if status ~= 200 then
@@ -62,14 +68,14 @@ local function curl_callback(response, cb)
 
     vim.schedule_wrap(function(msg)
         local json = vim.fn.json_decode(msg)
-        GeminiProvider.handle_response(json, cb)
+        GeminiProvider.handle_response(json, user_message_text, cb, bufnr)
     end)(body)
 
     Api.run_finished_hook()
 end
 
 
-function GeminiProvider.handle_response(json, cb)
+function GeminiProvider.handle_response(json, user_message_text, cb, bufnr)
     if json == nil then
         print("Response empty")
     elseif json.error then
@@ -84,7 +90,9 @@ function GeminiProvider.handle_response(json, cb)
                 if type(response_text) ~= "string" or response_text == "" then
                     print("Error: No response text " .. type(response_text))
                 else
-                    local bufnr = vim.api.nvim_get_current_buf()
+                    History.add_message(bufnr, "user", user_message_text)
+                    History.add_message(bufnr, "assistant", response_text)
+
                     if vim.g["codegpt_clear_visual_selection"] then
                         vim.api.nvim_buf_set_mark(bufnr, "<", 0, 0, {})
                         vim.api.nvim_buf_set_mark(bufnr, ">", 0, 0, {})
@@ -100,7 +108,7 @@ function GeminiProvider.handle_response(json, cb)
     end
 end
 
-function GeminiProvider.make_call(payload, cb)
+function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
     local model_name = payload.model
     if not model_name or model_name == "" then
         print("Error: Gemini provider requires a model to be configured for the command.")
@@ -117,7 +125,7 @@ function GeminiProvider.make_call(payload, cb)
         body = payload_str,
         headers = headers,
         callback = function(response)
-            curl_callback(response, cb)
+            curl_callback(response, user_message_text, cb, bufnr)
         end,
         on_error = function(err)
             print('Curl error:', err.message)

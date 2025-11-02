@@ -12,7 +12,7 @@ Installing with packer.
 
 ```lua
 use({
-   "dpayne/CodeGPT.nvim",
+   "filtercodes/CodeGPT.nvim",
    requires = {
       "MunifTanjim/nui.nvim",
       "nvim-lua/plenary.nvim",
@@ -28,7 +28,7 @@ Installing with plugged.
 ```vim
 Plug("nvim-lua/plenary.nvim")
 Plug("MunifTanjim/nui.nvim")
-Plug("dpayne/CodeGPT.nvim")
+Plug("filtercodes/CodeGPT.nvim")
 ```
 
 Installing OpenAI's tokenizer
@@ -61,6 +61,7 @@ A full list of predefined commands are below
 
 | command      | input | Description |
 |--------------|---- |------------------------------------|
+| clear | none | This command will delete current chat short term memory
 | completion |  text selection | Will ask ChatGPT to complete the selected code. |
 | code_edit  |  text selection and command args | Will ask ChatGPT to apply the given instructions (the command args) to the selected code. |
 | explain  |  text selection | Will ask ChatGPT to explain the selected code. |
@@ -323,6 +324,28 @@ To set the height of the horizontal window or the width of the vertical popup, y
 ```lua
 vim.g["codegpt_horizontal_popup_size"] = "20%"
 vim.g["codegpt_vertical_popup_size"] = "20%"
+```
+
+### History configuration -> short-term memory
+
+`vim.g.codegpt_chat_history_timeout` - Defines the maximum idle time in seconds before a conversation's history is considered "stale" and is automatically reset.
+
+`vim.g.codegpt_chat_history_max_messages` - Sets a "sliding window" to limit the total number of messages (user + assistant) kept in memory for a conversation. This prevents the context from growing too large.
+
+These can be configured globally (`init.lua` or `plugins.lua`):
+
+```lua
+-- To set custom values
+vim.g.codegpt_chat_history_timeout = 300   -- 5 minutes
+vim.g.codegpt_chat_history_max_messages = 20 -- 20 messages total
+
+-- Vars have to be set before "require" block
+require('packer').startup(function(use)
+  use({
+    "filtercodes/CodeGPT.nvim",
+    requires -- ... etc
+  })
+end)
 ```
 
 ### Miscellaneous Configuration Options

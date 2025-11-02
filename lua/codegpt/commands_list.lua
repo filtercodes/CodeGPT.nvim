@@ -18,7 +18,7 @@ local provider_defaults = {
         reasoning = { effort = "medium" },
     },
     ollama = {
-        model = "deepseek-r1:7b",
+        model = "qwen3:8b",
     },
     anthropic = {
         model = "claude-haiku-4-5",
@@ -57,7 +57,7 @@ CommandsList.CallbackTypes = {
 }
 
 function CommandsList.get_cmd_opts(cmd)
-    -- 1. Start with the plugin's hardcoded defaults for all commands.
+    -- Start with hardcoded defaults for all commands
     local opts = vim.deepcopy(cmd_default)
 
     -- Merge provider defaults
@@ -66,21 +66,21 @@ function CommandsList.get_cmd_opts(cmd)
         opts = vim.tbl_extend("force", opts, provider_defaults[provider_name])
     end
 
-    -- 2. Merge the user's global defaults, if they exist.
+    -- Merge the user's global defaults, if they exist
     if vim.g["codegpt_global_commands_defaults"] ~= nil then
         opts = vim.tbl_extend("force", opts, vim.g["codegpt_global_commands_defaults"])
     end
 
-    -- 3. Get settings from default commands and user-defined commands.
+    -- Get settings from default commands and user-defined commands
     local default_cmd_opts = vim.g["codegpt_commands_defaults"][cmd]
     local user_cmd_opts = (vim.g["codegpt_commands"] or {})[cmd]
 
-    -- A command must exist in one of the tables.
+    -- A command must exist in one of the tables
     if default_cmd_opts == nil and user_cmd_opts == nil then
         return nil
     end
 
-    -- 4. Merge settings, with user settings taking precedence.
+    -- Merge settings, with user settings taking precedence
     if default_cmd_opts ~= nil then
         opts = vim.tbl_extend("force", opts, default_cmd_opts)
     end
@@ -88,7 +88,7 @@ function CommandsList.get_cmd_opts(cmd)
         opts = vim.tbl_extend("force", opts, user_cmd_opts)
     end
 
-    -- 5. Ensure a model is configured.
+    -- Model is configured?
     if opts.model == nil or opts.model == "" then
         vim.notify(
             "CodeGPT: Model not configured for command '"
@@ -99,10 +99,8 @@ function CommandsList.get_cmd_opts(cmd)
         return nil
     end
 
-    -- 6. Set the correct callback function.
+    -- Callback function
     if opts.callback_type == "custom" then
-        -- The callback function should have been defined in the user's config.
-        -- It's already in `opts` if defined. We just need to ensure it's a function.
         if type(opts.callback) ~= "function" then
             vim.notify("Custom callback for command '" .. cmd .. "' is not a function.", vim.log.levels.ERROR)
             return nil
@@ -110,7 +108,9 @@ function CommandsList.get_cmd_opts(cmd)
     else
         opts.callback = CommandsList.CallbackTypes[opts.callback_type]
     end
-    print("--- CodeGPT Debug: Loaded model -> " .. opts.model .. " ---")
+    -- print("--- CodeGPT Debug: Loaded model -> " .. opts.model .. " ---")
+    -- vim.notiry is less intrusive than print
+    vim.notify("CodeGPT: Loaded model -> " .. opts.model, vim.log.levels.INFO, { title = "CodeGPT" })
     return opts
 end
 

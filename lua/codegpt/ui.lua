@@ -4,15 +4,34 @@ local event = require("nui.utils.autocmd").event
 
 local Ui = {}
 
+-- This table will store the link between a temporary UI buffer and its
+-- "History Owner" buffer (e.g., { [popup_bufnr] = owner_bufnr }).
+local ui_to_owner_map = {}
+
 local popup
 local split
+
+---Looks up the owner buffer for a given UI buffer.
+---@param bufnr number: The buffer number of the UI window.
+---@return number | nil: The owner's buffer number or nil if not found.
+function Ui.get_owner_bufnr(bufnr)
+    return ui_to_owner_map[bufnr]
+end
 
 local function setup_ui_element(lines, filetype, bufnr, start_row, start_col, end_row, end_col, ui_elem)
     -- mount/open the component
     ui_elem:mount()
 
+    -- Capture the buffer number in a local variable for the closure
+    local ui_bufnr = ui_elem.bufnr
+
+    -- Register the link between the UI buffer and its owner
+    ui_to_owner_map[ui_bufnr] = bufnr
+
     -- unmount component when cursor leaves buffer
     ui_elem:on(event.BufLeave, function()
+        -- Deregister the link using the captured buffer number
+        ui_to_owner_map[ui_bufnr] = nil
         ui_elem:unmount()
     end)
 
@@ -34,6 +53,8 @@ local function setup_ui_element(lines, filetype, bufnr, start_row, start_col, en
     -- selecting all the content when ctrl-i is pressed
     -- so the user can proceed with another API request
     ui_elem:map("n", vim.g["codegpt_ui_commands"].use_as_input, function()
+        -- The new tracking system handles the history automatically.
+        -- We just need to select the text and start the Chat command.
         vim.api.nvim_feedkeys("ggVG:Chat ", "n", false)
     end, { noremap = false })
 

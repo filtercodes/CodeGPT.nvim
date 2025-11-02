@@ -1,10 +1,11 @@
 local CommandsList = require("codegpt.commands_list")
 local Providers = require("codegpt.providers")
 local Api = require("codegpt.api")
+local History = require("codegpt.history")
 
 local Commands = {}
 
-function Commands.run_cmd(command, command_args, text_selection)
+function Commands.run_cmd(command, command_args, text_selection, bufnr)
 	local cmd_opts = CommandsList.get_cmd_opts(command)
 	if cmd_opts == nil then
 		vim.notify("Command not found: " .. command, vim.log.levels.ERROR, {
@@ -13,15 +14,18 @@ function Commands.run_cmd(command, command_args, text_selection)
 		return
 	end
 
-  local bufnr = vim.api.nvim_get_current_buf()
+  -- If bufnr is not provided, default to the current buffer.
+  -- This buffer is the "History Owner" for the conversation.
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
   local start_row, start_col, end_row, end_col = Utils.get_visual_selection()
   local new_callback = function(lines)
     cmd_opts.callback(lines, bufnr, start_row, start_col, end_row, end_col)
   end
 
   local provider = Providers.get_provider()
-	local request = provider.make_request(command, cmd_opts, command_args, text_selection)
-  provider.make_call(request, new_callback)
+	local request, user_message_text = provider.make_request(command, cmd_opts, command_args, text_selection, bufnr)
+  provider.make_call(request, user_message_text, new_callback, bufnr)
 end
 
 function Commands.get_status(...)
