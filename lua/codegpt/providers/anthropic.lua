@@ -23,6 +23,7 @@ function AnthropicProvider.make_request(command, cmd_opts, command_args, text_se
         model = cmd_opts.model,
         system = system_message,
         messages = messages_for_api,
+        stream = true,
     }
 
     return request, new_user_message_text
@@ -45,60 +46,55 @@ function AnthropicProvider.make_headers()
 end
 
 
-local function curl_callback(response, user_message_text, cb, bufnr)
-    local status = response.status
-    local body = response.body
-    if status ~= 200 then
-        body = body:gsub("%s+", " ")
-        print("Error: " .. status .. " " .. body)
+local function response_handler(user_message_text, cb, bufnr)
+  local full_response_text = ""
+
+  return function(err, chunk, response)
+    vim.schedule(function()
+      if err then
+        print("Stream error: " .. err)
+        Api.run_finished_hook()
         return
-    end
+      end
 
-    if body == nil or body == "" then
-        print("Error: No body")
-        return
-    end
-
-    vim.schedule_wrap(function(msg)
-        local json = vim.fn.json_decode(msg)
-        AnthropicProvider.handle_response(json, user_message_text, cb, bufnr)
-    end)(body)
-
-    Api.run_finished_hook()
-end
-
-
-function AnthropicProvider.handle_response(json, user_message_text, cb, bufnr)
-    if json == nil then
-        print("Response empty")
-    elseif json.error then
-        print("Error: " .. json.error.message)
-    elseif json.stop_reason ~= "end_turn" then
-        print("Response is incomplete. Payload: " .. vim.fn.json_encode(json))
-    else
-        if json.content[1] ~= nil then
-            local response_text = json.content[1].text
-
-            if response_text ~= nil then
-                if type(response_text) ~= "string" or response_text == "" then
-                    print("Error: No response text " .. type(response_text))
-                else
-                    History.add_message(bufnr, "user", user_message_text)
-                    History.add_message(bufnr, "assistant", response_text)
-
-                    if vim.g["codegpt_clear_visual_selection"] then
-                        vim.api.nvim_buf_set_mark(bufnr, "<", 0, 0, {})
-                        vim.api.nvim_buf_set_mark(bufnr, ">", 0, 0, {})
-                    end
-                    cb(Utils.parse_lines(response_text))
-                end
-            else
-                print("Error: No completion")
-            end
+      if response and response.status and response.status ~= 200 then
+        if chunk then
+          local body = chunk:gsub("%s+", " ")
+          print("Error: " .. response.status .. " " .. body)
         else
-            print("Error: No completion")
+          print("Error: " .. response.status .. " (No error body received)")
         end
-    end
+        Api.run_finished_hook()
+        return
+      end
+
+      if chunk then
+        -- Split chunk by lines, because it can contain multiple events
+        for s in string.gmatch(chunk, "[^\r\n]+") do
+          -- data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}
+          if string.match(s, "data:") then
+            local json_string = string.gsub(s, "data: ", "")
+            local json = vim.fn.json_decode(json_string)
+            if json.type == "content_block_delta" then
+              full_response_text = full_response_text .. json.delta.text
+            elseif json.type == "message_stop" then
+              History.add_message(bufnr, "user", user_message_text)
+              History.add_message(bufnr, "assistant", full_response_text)
+              if vim.g["codegpt_clear_visual_selection"] then
+                vim.api.nvim_buf_set_mark(bufnr, "<", 0, 0, {})
+                vim.api.nvim_buf_set_mark(bufnr, ">", 0, 0, {})
+              end
+              cb(Utils.parse_lines(full_response_text))
+              Api.run_finished_hook()
+            elseif json.type == "error" then
+              print("Anthropic API Error: " .. json.error.message)
+              Api.run_finished_hook()
+            end
+          end
+        end
+      end
+    end)
+  end
 end
 
 function AnthropicProvider.make_call(payload, user_message_text, cb, bufnr)
@@ -109,9 +105,7 @@ function AnthropicProvider.make_call(payload, user_message_text, cb, bufnr)
     curl.post(url, {
         body = payload_str,
         headers = headers,
-        callback = function(response)
-            curl_callback(response, user_message_text, cb, bufnr)
-        end,
+        stream = response_handler(user_message_text, cb, bufnr),
         on_error = function(err)
             print('Curl error:', err.message)
             Api.run_finished_hook()

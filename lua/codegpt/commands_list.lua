@@ -22,7 +22,7 @@ local provider_defaults = {
     },
     anthropic = {
         model = "claude-haiku-4-5",
-        max_tokens = 1000,
+        max_tokens = 4096,
     },
     gemini = {
         model = "gemini-2.5-flash",
