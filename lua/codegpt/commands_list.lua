@@ -25,7 +25,9 @@ local provider_defaults = {
         max_tokens = 4096,
     },
     gemini = {
-        model = "gemini-2.5-flash",
+        -- model = "gemini-2.5-flash",
+        model = "gemini-3-pro-preview",
+
     },
     groq = {
         model = "mixtral-8x7b-32768",
@@ -91,7 +93,7 @@ function CommandsList.get_cmd_opts(cmd)
     -- Model is configured?
     if opts.model == nil or opts.model == "" then
         vim.notify(
-            "CodeGPT: Model not configured for command '"
+            "CodeGPT.vim: Model not configured for command '"
                 .. cmd
                 .. "'. Please set it in vim.g.codegpt_commands or vim.g.codegpt_global_commands_defaults",
             vim.log.levels.ERROR
@@ -108,9 +110,9 @@ function CommandsList.get_cmd_opts(cmd)
     else
         opts.callback = CommandsList.CallbackTypes[opts.callback_type]
     end
-    -- print("--- CodeGPT Debug: Loaded model -> " .. opts.model .. " ---")
+    -- print("--- CodeGPT.vim Debug: Loaded model -> " .. opts.model .. " ---")
     -- vim.notiry is less intrusive than print
-    vim.notify("CodeGPT: Loaded model -> " .. opts.model, vim.log.levels.INFO, { title = "CodeGPT" })
+    vim.notify("LLM Model -> " .. opts.model, vim.log.levels.INFO, { title = "CodeGPT.vim" })
     return opts
 end
 

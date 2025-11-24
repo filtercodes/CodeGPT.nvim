@@ -46,7 +46,10 @@ vim.g["codegpt_horizontal_popup_size"] = "20%"
 vim.g["codegpt_vertical_popup_size"] = "20%"
 
 -- Set timeout for chat history
-vim.g["codegpt_chat_history_timeout"] = 300
+vim.g["codegpt_chat_history_timeout"] = 900
+
+-- Set if the chat history should expire based on time
+vim.g["codegpt_chat_history_time_based_expiry"] = true
 
 -- Set max messages for chat history
 vim.g["codegpt_chat_history_max_messages"] = 20

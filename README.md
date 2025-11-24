@@ -1,12 +1,12 @@
 # CodeGPT.nvim
 
-CodeGPT is a plugin for neovim that provides commands to interact with ChatGPT. The focus is around code related usages. So code completion, refactorings, generating docs, etc.
+CodeGPT.nvim is a plugin for neovim that provides commands to interact with LLMs. The focus is around code related usages: code completion, refactorings, generating docs, etc.
 
 ## Installation
 
-* Set environment variable `OPENAI_API_KEY` to your [openai api key](https://platform.openai.com/account/api-keys).
+* Set environment variable for your prefered API key e.g. `OPENAI_API_KEY` [openai api key](https://platform.openai.com/account/api-keys).
 * The plugins 'plenary' and 'nui' are also required.
-* OpenAI's tokenizer [tiktoken](https://github.com/openai/tiktoken) is recommended for accurate token count estimate.
+* Optional: OpenAI's tokenizer [tiktoken](https://github.com/openai/tiktoken) is recommended for accurate token count estimate if using OpenAI LLM provider.
 
 Installing with packer.
 
@@ -19,6 +19,7 @@ use({
    },
    config = function()
       require("codegpt.config")
+      vim.g.codegpt_api_provider = "ollama" -- other options are 'gemini', 'anthropic', 'openai', etc.
    end
 })
 ```
@@ -41,7 +42,7 @@ pip install tiktoken
 The top-level command is `:Chat`. The behavior is different depending on whether text is selected and/or arguments are passed.
 
 ### Completion
-* `:Chat` with text selection will trigger the `completion` command, ChatGPT will try to complete the selected code snippet.
+* `:Chat` with text selection will trigger the `completion` command, LLM will try to complete the selected code snippet.
 ![completion](examples/completion.gif?raw=true)
 
 ### Code Edit
@@ -53,7 +54,7 @@ The top-level command is `:Chat`. The behavior is different depending on whether
 ![tests](examples/tests.gif?raw=true)
 
 ### Chat
-* `:Chat hello world` without any text selection will trigger the `chat` command. This will send the arguments `hello world` to ChatGPT and show the results in a popup.
+* `:Chat hello world` without any text selection will trigger the `chat` command. This will send the arguments `hello world` and show the results in a popup.
 ![chat](examples/chat.gif?raw=true)
 
 
@@ -62,15 +63,15 @@ A full list of predefined commands are below
 | command      | input | Description |
 |--------------|---- |------------------------------------|
 | clear | none | This command will delete current chat short term memory
-| completion |  text selection | Will ask ChatGPT to complete the selected code. |
-| code_edit  |  text selection and command args | Will ask ChatGPT to apply the given instructions (the command args) to the selected code. |
-| explain  |  text selection | Will ask ChatGPT to explain the selected code. |
-| question  |  text selection | Will pass the commands args to ChatGPT and return the answer in a text popup. |
-| debug  |  text selection | Will pass the code selectiont to ChatGPT analyze it for bugs, the results will be in a text popup. |
-| doc  |  text selection | Will ask ChatGPT to document the selected code. |
-| opt  |  text selection | Will ask ChatGPT to optimize the selected code. |
-| tests  |  text selection | Will ask ChatGPT to write unit tests for the selected code. |
-| chat  |  command args | Will pass the given command args to ChatGPT and return the response in a popup. |
+| completion |  text selection | Will ask LLM to complete the selected code. |
+| code_edit  |  text selection and command args | Will ask LLM to apply the given instructions (the command args) to the selected code. |
+| explain  |  text selection | Will ask LLM to explain the selected code. |
+| question  |  text selection | Will pass the commands args to LLM and return the answer in a text popup. |
+| debug  |  text selection | Will pass the code selectiont to LLM analyze it for bugs, the results will be in a text popup. |
+| doc  |  text selection | Will ask LLM to document the selected code. |
+| opt  |  text selection | Will ask LLM to optimize the selected code. |
+| tests  |  text selection | Will ask LLM to write unit tests for the selected code. |
+| chat  |  command args | Will pass the given command args to LLM and return the response in a popup. |
 
 
 ## Overriding Command Configurations
@@ -80,7 +81,7 @@ The configuration option `vim.g["codegpt_commands_defaults"] = {}` can be used t
 ```lua
 vim.g["codegpt_commands_defaults"] = {
   ["completion"] = {
-      user_message_template = "This is a template of the message passed to chat gpt. Hello, the code snippet is {{text_selection}}."
+      user_message_template = "This is a template of the message passed to LLM. Hello, the code snippet is {{text_selection}}."
 }
 ```
 The above, overrides the message template for the `completion` command.
@@ -330,14 +331,17 @@ vim.g["codegpt_vertical_popup_size"] = "20%"
 
 `vim.g.codegpt_chat_history_timeout` - Defines the maximum idle time in seconds before a conversation's history is considered "stale" and is automatically reset.
 
-`vim.g.codegpt_chat_history_max_messages` - Sets a "sliding window" to limit the total number of messages (user + assistant) kept in memory for a conversation. This prevents the context from growing too large.
+`vim.g.codegpt_chat_history_time_based_expiry`: Boolean (Default: `true`). - Allows disabiling history_timeout so that memory is preserved until nvim restart.
+
+`vim.g.codegpt_chat_history_max_messages` - Sets a "sliding window" to limit the total number of messages (user + assistant) kept in memory for a conversation. This prevents the context from growing too large. Once the max_messages is reached, older messages are summarised to keep the context small.
 
 These can be configured globally (`init.lua` or `plugins.lua`):
 
 ```lua
 -- To set custom values
-vim.g.codegpt_chat_history_timeout = 300   -- 5 minutes
+vim.g.codegpt_chat_history_timeout = 900   -- 15 minutes
 vim.g.codegpt_chat_history_max_messages = 20 -- 20 messages total
+vim.g.codegpt_chat_history_time_based_expiry = true
 
 -- Vars have to be set before "require" block
 require('packer').startup(function(use)
@@ -383,7 +387,7 @@ Callback types control what to do with the response
 
 # Example Configuration
 
-Note that CodeGPT should work without any configuration.
+Note that CodeGPT.nvim should work without any configuration.
 This is an example configuration that shows some of the options available:
 
 ``` lua

@@ -9,7 +9,7 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr)
 	local cmd_opts = CommandsList.get_cmd_opts(command)
 	if cmd_opts == nil then
 		vim.notify("Command not found: " .. command, vim.log.levels.ERROR, {
-			title = "CodeGPT",
+			title = "CodeGPT.vim",
 		})
 		return
 	end
