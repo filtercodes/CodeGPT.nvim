@@ -76,7 +76,7 @@ function CodeGptModule.run_cmd(opts)
         return
     end
 
-    Commands.run_cmd(command, command_args, text_selection, bufnr)
+    Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts)
 end
 
 return CodeGptModule

@@ -25,9 +25,8 @@ local provider_defaults = {
         max_tokens = 4096,
     },
     gemini = {
-        -- model = "gemini-2.5-flash",
-        model = "gemini-3-pro-preview",
-
+        model = "gemini-2.5-flash",
+        -- model = "gemini-3-pro-preview",
     },
     groq = {
         model = "mixtral-8x7b-32768",

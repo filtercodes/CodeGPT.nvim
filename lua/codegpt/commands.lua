@@ -2,11 +2,15 @@ local CommandsList = require("codegpt.commands_list")
 local Providers = require("codegpt.providers")
 local Api = require("codegpt.api")
 local History = require("codegpt.history")
+local Utils = require("codegpt.utils")
 
 local Commands = {}
 
-function Commands.run_cmd(command, command_args, text_selection, bufnr)
-	local cmd_opts = CommandsList.get_cmd_opts(command)
+function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts)
+	if cmd_opts == nil then
+		cmd_opts = CommandsList.get_cmd_opts(command)
+	end
+
 	if cmd_opts == nil then
 		vim.notify("Command not found: " .. command, vim.log.levels.ERROR, {
 			title = "CodeGPT.vim",
