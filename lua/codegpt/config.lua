@@ -1,9 +1,3 @@
-if os.getenv("OPENAI_API_KEY") ~= nil then
-    vim.g["codegpt_openai_api_key"] = os.getenv("OPENAI_API_KEY")
-end
-if os.getenv("GEMINI_API_KEY") ~= nil then
-    vim.g["codegpt_gemini_api_key"] = os.getenv("GEMINI_API_KEY")
-end
 vim.g["codegpt_chat_completions_url"] = "https://api.openai.com/v1/chat/completions"
 
 -- Read old config if it exists

@@ -60,7 +60,7 @@ local function curl_callback(response, user_message_text, cb, bufnr)
 end
 
 function OpenAIProvider.make_headers()
-    local token = vim.g["codegpt_openai_api_key"]
+    local token = vim.g["codegpt_openai_api_key"] or os.getenv("OPENAI_API_KEY")
     if not token then
         error(
             "OpenAIApi Key not found, set in vim with 'codegpt_openai_api_key' or as the env variable 'OPENAI_API_KEY'"

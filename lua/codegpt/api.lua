@@ -5,15 +5,15 @@ local Api = {}
 CODEGPT_CALLBACK_COUNTER = 0
 
 local status_index = 0
-local progress_bar_dots = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
+Api.progress_bar_dots = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 
 function Api.get_status(...)
     if CODEGPT_CALLBACK_COUNTER > 0 then
         status_index = status_index + 1
-        if status_index > #progress_bar_dots then
+        if status_index > #Api.progress_bar_dots then
             status_index = 1
         end
-        return progress_bar_dots[status_index]
+        return Api.progress_bar_dots[status_index]
     else
         return ""
     end

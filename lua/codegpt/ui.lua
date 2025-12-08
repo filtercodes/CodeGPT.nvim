@@ -4,6 +4,8 @@ local event = require("nui.utils.autocmd").event
 
 local Ui = {}
 
+local Api = require("codegpt.api")
+
 -- This table will store the link between a temporary UI buffer and its
 -- "History Owner" buffer (e.g., { [popup_bufnr] = owner_bufnr }).
 local ui_to_owner_map = {}
@@ -133,13 +135,13 @@ function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_co
 end
 
 function Ui.start_spinner(bufnr)
-    local frames = { "|", "/", "-", "\\" }
+    local frames = Api.progress_bar_dots
     local idx = 1
     local timer = vim.loop.new_timer()
     
     -- Initial set
     if vim.api.nvim_buf_is_valid(bufnr) then
-        vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "   " .. frames[1] .. "  Thinking..." })
+        vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "  " .. frames[1] .. " Generating..." })
     end
 
     timer:start(100, 100, vim.schedule_wrap(function()
@@ -157,7 +159,7 @@ function Ui.start_spinner(bufnr)
         idx = (idx % #frames) + 1
         -- Only replace the first line.
         -- Use pcall in case buffer was closed mid-tick
-        pcall(vim.api.nvim_buf_set_lines, bufnr, 0, 1, false, { "   " .. frames[idx] .. "  Thinking..." })
+        pcall(vim.api.nvim_buf_set_lines, bufnr, 0, 1, false, { "  " .. frames[idx] .. " Generating..." })
     end))
 
     return function()
@@ -167,6 +169,10 @@ function Ui.start_spinner(bufnr)
                 timer:close()
             end
             timer = nil
+        end
+        -- Clear the spinner line when stopping
+        if vim.api.nvim_buf_is_valid(bufnr) then
+            pcall(vim.api.nvim_buf_set_lines, bufnr, 0, 1, false, { "" })
         end
     end
 end

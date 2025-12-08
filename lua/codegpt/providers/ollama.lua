@@ -97,7 +97,7 @@ end
 OllaMaProvider.has_streaming = true
 
 function OllaMaProvider.make_call(payload, user_message_text, cb, bufnr)
-    local url = vim.g["codegpt_ollama_url"] or "http://localhost:11434/api/chat"
+    local url = vim.g["codegpt_ollama_url"] or "http://127.0.0.1:11434/api/chat"
     local headers = OllaMaProvider.make_headers()
     Api.run_started_hook()
 
