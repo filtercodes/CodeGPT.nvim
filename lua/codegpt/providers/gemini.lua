@@ -166,11 +166,28 @@ function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
             timeout = 20000, -- 20 seconds timeout
             stream = function(err, chunk)
                 if err then
-                    vim.schedule(function() cb.on_error(err) end)
+                    vim.schedule(function() 
+                        cb.on_error(err) 
+                        Api.run_finished_hook()
+                    end)
                     return
                 end
                 
                 if not chunk then 
+                    -- End of stream: Flush remaining partial data
+                    vim.schedule(function()
+                         if partial_data and partial_data ~= "" then
+                            local text_fragment, err_msg = parse_chunk_line(partial_data)
+                            if err_msg then
+                                 cb.on_error(err_msg)
+                            elseif text_fragment then
+                                full_text = full_text .. text_fragment
+                                cb.on_chunk(text_fragment)
+                            end
+                        end
+                        cb.on_complete(full_text)
+                        Api.run_finished_hook()
+                    end)
                     return 
                 end
 
@@ -235,29 +252,6 @@ function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
 
                 -- Update partial_data with any remaining unprocessed part
                 partial_data = string.sub(current_buffer, processed_segment_end + 1)
-            end,
-            callback = function(response)
-                -- Final callback when stream ends
-                vim.schedule(function()
-                    -- Process any remaining data in partial_data
-                    if partial_data and partial_data ~= "" then
-                        local text_fragment, err_msg = parse_chunk_line(partial_data)
-                        if err_msg then
-                             cb.on_error(err_msg)
-                        elseif text_fragment then
-                            full_text = full_text .. text_fragment
-                            cb.on_chunk(text_fragment)
-                        end
-                    end
-
-                    if response.status ~= 200 then
-                         local error_msg = "Error: " .. response.status .. " " .. (response.body or "")
-                         cb.on_error(error_msg)
-                    else
-                         cb.on_complete(full_text)
-                    end
-                    Api.run_finished_hook()
-                end)
             end,
             on_error = function(err)
                 print('Curl error:', err.message)

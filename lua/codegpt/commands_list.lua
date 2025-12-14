@@ -29,7 +29,7 @@ local provider_defaults = {
         -- model = "gemini-3-pro-preview",
     },
     groq = {
-        model = "mixtral-8x7b-32768",
+        model = "qwen/qwen3-32b",
     },
 }
 

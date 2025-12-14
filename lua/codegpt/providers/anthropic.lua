@@ -67,10 +67,21 @@ function AnthropicProvider.make_call(payload, user_message_text, cb, bufnr)
             raw = { "--no-buffer" },
             stream = function(err, chunk)
                 if err then
-                    vim.schedule(function() cb.on_error(err) end)
+                    vim.schedule(function() 
+                        cb.on_error(err) 
+                        Api.run_finished_hook()
+                    end)
                     return
                 end
-                if not chunk then return end
+                
+                if not chunk then
+                    -- End of stream
+                    vim.schedule(function()
+                        cb.on_complete(full_text)
+                        Api.run_finished_hook()
+                    end)
+                    return 
+                end
 
                 partial_data = partial_data .. chunk
                 local current_buffer = partial_data
@@ -106,7 +117,10 @@ function AnthropicProvider.make_call(payload, user_message_text, cb, bufnr)
                     local ok, json = pcall(vim.json.decode, json_str)
                     if ok and json then
                         if json.type == "error" then
-                            vim.schedule(function() cb.on_error(json.error.message) end)
+                            vim.schedule(function() 
+                                cb.on_error(json.error.message)
+                                -- Note: Don't finish hook here, wait for stream end
+                            end)
                         elseif json.type == "content_block_delta" and json.delta and json.delta.text then
                             local text = json.delta.text
                             full_text = full_text .. text
@@ -116,16 +130,6 @@ function AnthropicProvider.make_call(payload, user_message_text, cb, bufnr)
                 end
 
                 partial_data = string.sub(current_buffer, processed_segment_end + 1)
-            end,
-            callback = function(response)
-                vim.schedule(function()
-                    if response.status ~= 200 then
-                        cb.on_error("Error: " .. response.status)
-                    else
-                        cb.on_complete(full_text)
-                    end
-                    Api.run_finished_hook()
-                end)
             end,
             on_error = function(err)
                 cb.on_error(err.message)
