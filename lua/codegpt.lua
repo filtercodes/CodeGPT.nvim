@@ -40,6 +40,13 @@ function CodeGptModule.run_cmd(opts)
         return -- Stop all further processing
     end
 
+    -- Handle `help` as a special case
+    if command == "help" then
+        local Help = require("codegpt.help")
+        Help.show_help(bufnr)
+        return
+    end
+
     local cmd_opts = CommandsList.get_cmd_opts(command)
 
     if cmd_opts ~= nil then

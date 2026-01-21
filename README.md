@@ -41,6 +41,10 @@ pip install tiktoken
 
 The top-level command is `:Chat`. The behavior is different depending on whether text is selected and/or arguments are passed.
 
+### Chat
+* `:Chat hello world` without any text selection will trigger the `chat` command. This will send the arguments `hello world` and show the results in a popup.
+![chat](examples/chat.gif?raw=true)
+
 ### Completion
 * `:Chat` with text selection will trigger the `completion` command, LLM will try to complete the selected code snippet.
 ![completion](examples/completion.gif?raw=true)
@@ -53,16 +57,15 @@ The top-level command is `:Chat`. The behavior is different depending on whether
 * `:Chat <command>` if there is only one argument and that argument matches a command, it will invoke that command with the given text selection. In the below example `:Chat tests` will attempt to write units for the selected code.
 ![tests](examples/tests.gif?raw=true)
 
-### Chat
-* `:Chat hello world` without any text selection will trigger the `chat` command. This will send the arguments `hello world` and show the results in a popup.
-![chat](examples/chat.gif?raw=true)
+### Help
+* `:Chat help` will open a help window listing available commands, keybindings, and configuration options.
 
 
 A full list of predefined commands are below
 
 | command      | input | Description |
 |--------------|---- |------------------------------------|
-| clear | none | This command will delete current chat short term memory
+| chat  |  command args | Will pass the given command args to LLM and return the response in a popup. |
 | completion |  text selection | Will ask LLM to complete the selected code. |
 | code_edit  |  text selection and command args | Will ask LLM to apply the given instructions (the command args) to the selected code. |
 | explain  |  text selection | Will ask LLM to explain the selected code. |
@@ -71,8 +74,8 @@ A full list of predefined commands are below
 | doc  |  text selection | Will ask LLM to document the selected code. |
 | opt  |  text selection | Will ask LLM to optimize the selected code. |
 | tests  |  text selection | Will ask LLM to write unit tests for the selected code. |
-| chat  |  command args | Will pass the given command args to LLM and return the response in a popup. |
-
+| clear | none | This command will delete current chat short term memory. |
+| help | none | Displays the help guide. |
 
 ## Overriding Command Configurations
 
@@ -100,7 +103,6 @@ A full list of overrides
 | extra_params            | {}              | A table of custom parameters to be sent to the API.                                                                                                               |
 
 
-
 ### Overriding the global defaults
 
 The overrides can be set globally using `vim.g["codegpt_global_commands_defaults"]`. This can be useful to setup a custom configuration for APIs that emulate OpenAI such as LocalAI.
@@ -116,7 +118,6 @@ The overrides can be set globally using `vim.g["codegpt_global_commands_defaults
         -- }
     }
 ```
-
 
 
 #### Templates
@@ -168,7 +169,6 @@ After defining this command, any `:Chat` command that has `testwith` as its firs
 
 ## Custom Commands
 
-
 Custom commands can be added to the `vim.g["codegpt_commands"]` configuration option to extend the available commands.
 
 ```lua
@@ -198,6 +198,7 @@ The default command configuration is:
     callback_type = "replace_lines",
 }
 ```
+
 
 ## More Configuration Options
 
@@ -433,6 +434,7 @@ vim.g["codegpt_commands"] = {
 }
 
 ```
+
 
 # Goals
 * Code related usages.
