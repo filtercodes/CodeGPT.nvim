@@ -145,6 +145,10 @@ function Ui.start_spinner(bufnr)
     end
 
     timer:start(100, 100, vim.schedule_wrap(function()
+        if not timer then
+            return
+        end
+
         if not vim.api.nvim_buf_is_valid(bufnr) then
             -- If buffer is no longer valid, stop and close the timer.
             if timer then
