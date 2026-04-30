@@ -14,7 +14,7 @@ local cmd_default = {
 
 local provider_defaults = {
     openai = {
-        model = "gpt-5-nano",
+        model = "gpt-5.4-nano",
         reasoning = { effort = "medium" },
     },
     ollama = {

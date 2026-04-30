@@ -34,20 +34,25 @@ function CodeGptModule.run_cmd(opts)
     end
 
     -- Handle `clear` as a special case that doesn't need validation
-    if command == "clear" then
+    if command == "clear" and #opts.fargs == 1 then
         History.clear_history(bufnr)
         vim.notify("Chat history cleared for this buffer.", vim.log.levels.INFO, { title = "CodeGPT" })
         return -- Stop all further processing
     end
 
     -- Handle `help` as a special case
-    if command == "help" then
+    if command == "help" and #opts.fargs == 1 then
         local Help = require("codegpt.help")
         Help.show_help(bufnr)
         return
     end
 
-    local cmd_opts = CommandsList.get_cmd_opts(command)
+    local cmd_opts = nil
+    -- If clear was used with arguments, we want it to fall through to chat/code_edit guessing logic
+    -- and prevent it from fetching the default 'clear' options (which triggers a redundant notification).
+    if not (command == "clear" and #opts.fargs > 1) then
+        cmd_opts = CommandsList.get_cmd_opts(command)
+    end
 
     if cmd_opts ~= nil then
         -- An explicit command was used (e.g., :Chat explain, :Chat tests)

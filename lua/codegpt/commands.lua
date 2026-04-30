@@ -91,7 +91,7 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
                       History.add_message(bufnr, "assistant", full_text)
                   end
     
-                  if vim.g["codegpt_clear_visual_selection"] then
+                  if vim.g["codegpt_clear_visual_selection"] and vim.api.nvim_buf_is_valid(bufnr) then
                       vim.api.nvim_buf_set_mark(bufnr, "<", 0, 0, {})
                       vim.api.nvim_buf_set_mark(bufnr, ">", 0, 0, {})
                   end

@@ -27,12 +27,15 @@ function OllaMaProvider.make_request(command, cmd_opts, command_args, text_selec
     end
     table.insert(messages_for_api, {role="user", content=new_user_message_text})
 
+    local thinking = false
+
     -- Request object
     local request = {
         temperature = cmd_opts.temperature,
         model = cmd_opts.model,
         messages = messages_for_api,
         stream = false,
+        think = thinking,
     }
 
     return request, new_user_message_text
@@ -60,7 +63,7 @@ function OllaMaProvider.handle_response(json, user_message_text, cb, bufnr)
                 History.add_message(bufnr, "user", user_message_text)
                 History.add_message(bufnr, "assistant", response_text)
 
-                if vim.g["codegpt_clear_visual_selection"] then
+                if vim.g["codegpt_clear_visual_selection"] and vim.api.nvim_buf_is_valid(bufnr) then
                     vim.api.nvim_buf_set_mark(bufnr, "<", 0, 0, {})
                     vim.api.nvim_buf_set_mark(bufnr, ">", 0, 0, {})
                 end

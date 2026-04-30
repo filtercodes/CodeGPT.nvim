@@ -155,7 +155,7 @@ function AnthropicProvider.make_call(payload, user_message_text, cb, bufnr)
                         local text = json.content[1].text
                         History.add_message(bufnr, "user", user_message_text)
                         History.add_message(bufnr, "assistant", text)
-                        if vim.g["codegpt_clear_visual_selection"] then
+                        if vim.g["codegpt_clear_visual_selection"] and vim.api.nvim_buf_is_valid(bufnr) then
                             vim.api.nvim_buf_set_mark(bufnr, "<", 0, 0, {})
                             vim.api.nvim_buf_set_mark(bufnr, ">", 0, 0, {})
                         end
