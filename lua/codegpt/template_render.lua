@@ -31,15 +31,19 @@ end
 function Render.render(cmd, template, command_args, text_selection, cmd_opts)
     local language = get_language()
     local language_instructions = ""
+    
     if cmd_opts.language_instructions ~= nil then
-        language_instructions = cmd_opts.language_instructions[language]
+        -- Try specific language first, fallback to "*" wildcard
+        language_instructions = cmd_opts.language_instructions[language] 
+            or cmd_opts.language_instructions["*"] 
+            or ""
     end
 
     template = safe_replace(template, "{{filetype}}", Utils.get_filetype())
     template = safe_replace(template, "{{text_selection}}", text_selection)
-    template = safe_replace(template, "{{language}}", language)
     template = safe_replace(template, "{{command_args}}", command_args)
     template = safe_replace(template, "{{language_instructions}}", language_instructions)
+    template = safe_replace(template, "{{language}}", language)
     return template
 end
 

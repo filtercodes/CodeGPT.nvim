@@ -104,6 +104,55 @@ function M.clear_history(bufnr)
     is_summarizing[bufnr] = false
 end
 
+---Retrieves a previous assistant response from the buffer's history.
+---@param bufnr number: The buffer number.
+---@param offset number|nil: 1-based index from the end (default 1).
+---@return string|nil: The content of the assistant message, or nil if none found.
+function M.get_last_response(bufnr, offset)
+    local buf_history = history[bufnr]
+    if not buf_history or #buf_history == 0 then
+        return nil
+    end
+    
+    local target = offset or 1
+    local count = 0
+    
+    -- Iterate backwards to find the nth assistant message
+    for i = #buf_history, 1, -1 do
+        if buf_history[i].role == "assistant" then
+            count = count + 1
+            if count == target then
+                return buf_history[i].content
+            end
+        end
+    end
+    return nil
+end
+
+---Removes the last exchange (assistant response + user prompt) from the history.
+---@param bufnr number: The buffer number.
+---@return boolean: True if something was removed, False otherwise.
+function M.undo_last_exchange(bufnr)
+    local buf_history = history[bufnr]
+    if not buf_history or #buf_history == 0 then
+        return false
+    end
+    
+    local popped_something = false
+    -- Remove the last message if it's an assistant response
+    if #buf_history > 0 and buf_history[#buf_history].role == "assistant" then
+        table.remove(buf_history)
+        popped_something = true
+    end
+    -- Also remove the corresponding user prompt that triggered it
+    if #buf_history > 0 and buf_history[#buf_history].role == "user" then
+        table.remove(buf_history)
+        popped_something = true
+    end
+    
+    return popped_something
+end
+
 ---Applies the summary to the history.
 ---@param bufnr
 ---@param summary_text string

@@ -15,6 +15,10 @@ local command_descriptions = {
     question = "Allows you to ask a specific question about the selected code. Unlike 'chat', this focuses context specifically on the selection.",
     generate = "Generates new code from scratch based on a prompt. Use this when you want to create a new function or class without starting from existing code.",
     clear = "Clears the chat history for the current buffer. This resets the conversation context.",
+    recall = "Displays the last response from the assistant in a popup window. Accepts an optional number to go further back (e.g., `:Chat recall 2` for the second-to-last response).",
+    last = "Alias for 'recall'. Displays a previous response from the assistant.",
+    rewind = "Removes the last exchange (your prompt and the assistant's response) from the chat history. Useful for undoing a bad conversation turn.",
+    undo = "Alias for 'rewind'. Removes the last exchange from the history.",
     help = "Displays this help file, listing available commands, keybindings, and configuration options.",
 }
 
@@ -36,11 +40,24 @@ function M.get_help_lines()
     table.insert(lines, "- `" .. ui_cmds.use_as_input .. "`: Use as input (select response and start new chat)")
     
     table.insert(lines, "")
-    table.insert(lines, "## Available Commands")
+    table.insert(lines, "## Commands")
 
-    -- Gather all commands
-    local all_commands = { "help" }
-    local seen = { help = true }
+    local commnds_listed = {
+        "chat", "completion", "code_edit", "explain", "doc", "tests",
+        "opt", "debug", "question", "generate", "clear",
+        "recall", "last", "rewind", "undo", "help"
+    }
+
+    local all_commands = {}
+    local seen = {}
+
+    for _, name in ipairs(commnds_listed) do
+        -- Only add it if it actually exists in the defaults or descriptions
+        if command_descriptions[name] or (vim.g["codegpt_commands_defaults"] and vim.g["codegpt_commands_defaults"][name]) then
+            table.insert(all_commands, name)
+            seen[name] = true
+        end
+    end
     
     local function collect_cmds(source)
         if not source then return end
@@ -54,14 +71,7 @@ function M.get_help_lines()
 
     collect_cmds(vim.g["codegpt_commands_defaults"])
     collect_cmds(vim.g["codegpt_commands"])
-    table.sort(all_commands)
 
-    for _, name in ipairs(all_commands) do
-        table.insert(lines, "- `" .. name .. "`")
-    end
-
-    table.insert(lines, "")
-    table.insert(lines, "## Command Details")
     for _, name in ipairs(all_commands) do
         local desc = command_descriptions[name] or "Custom user command."
         table.insert(lines, "### " .. name)

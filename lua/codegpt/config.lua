@@ -53,16 +53,14 @@ vim.g["codegpt_commands_defaults"] = {
         user_message_template =
         "I have the following {{language}} code snippet: ```{{filetype}}\n{{text_selection}}```\nComplete the rest. Use best practices and write really good documentation. {{language_instructions}} Only return the code snippet and nothing else.",
         language_instructions = {
-            cpp = "Use modern C++ features.",
-            java = "Use modern Java syntax. Use var when applicable.",
+            ["*"] = "Use modern {{language}} syntax and features.",
         },
     },
     ["generate"] = {
         user_message_template =
         "Write code in {{language}} using best practices and write really good documentation. {{language_instructions}} Only return the code snippet and nothing else. {{command_args}}",
         language_instructions = {
-            cpp = "Use modern C++ features.",
-            java = "Use modern Java syntax. Use var when applicable.",
+            ["*"] = "Use modern {{language}} syntax and features.",
         },
         allow_empty_text_selection = true,
     },
@@ -70,7 +68,7 @@ vim.g["codegpt_commands_defaults"] = {
         user_message_template =
         "I have the following {{language}} code: ```{{filetype}}\n{{text_selection}}```\n{{command_args}}. {{language_instructions}} Only return the code snippet and nothing else.",
         language_instructions = {
-            cpp = "Use modern C++ syntax.",
+            ["*"] = "Use modern {{language}} syntax and features.",
         },
     },
     ["explain"] = {
@@ -92,15 +90,14 @@ vim.g["codegpt_commands_defaults"] = {
         user_message_template =
         "I have the following {{language}} code: ```{{filetype}}\n{{text_selection}}```\nWrite really good documentation using best practices for the given language. Attention paid to documenting parameters, return types, any exceptions or errors. {{language_instructions}} Only return the code snippet and nothing else.",
         language_instructions = {
-            cpp = "Use doxygen style comments for functions.",
-            java = "Use JavaDoc style comments for functions.",
+            ["*"] = "Use the standard documentation style (e.g. Docstrings, JSDoc, Doxygen) typical for {{language}}.",
         },
     },
     ["opt"] = {
         user_message_template =
         "I have the following {{language}} code: ```{{filetype}}\n{{text_selection}}```\nOptimize this code. {{language_instructions}} Only return the code snippet and nothing else.",
         language_instructions = {
-            cpp = "Use modern C++.",
+            ["*"] = "Use modern {{language}} syntax and best practices.",
         },
     },
     ["tests"] = {
@@ -108,8 +105,7 @@ vim.g["codegpt_commands_defaults"] = {
         "I have the following {{language}} code: ```{{filetype}}\n{{text_selection}}```\nWrite really good unit tests using best practices for the given language. {{language_instructions}} Only return the unit tests. Only return the code snippet and nothing else. ",
         callback_type = "code_popup",
         language_instructions = {
-            cpp = "Use modern C++ syntax. Generate unit tests using the gtest framework.",
-            java = "Generate unit tests using the junit framework.",
+            ["*"] = "Use modern {{language}} syntax. Generate unit tests using a standard testing framework appropriate for {{language}}.",
         },
     },
     ["chat"] = {
@@ -118,6 +114,21 @@ vim.g["codegpt_commands_defaults"] = {
         allow_empty_text_selection = true,
     },
     ["clear"] = {
+        allow_empty_text_selection = true,
+    },
+    ["recall"] = {
+        allow_empty_text_selection = true,
+    },
+    ["last"] = {
+        allow_empty_text_selection = true,
+    },
+    ["rewind"] = {
+        allow_empty_text_selection = true,
+    },
+    ["undo"] = {
+        allow_empty_text_selection = true,
+    },
+    ["help"] = {
         allow_empty_text_selection = true,
     },
 }

@@ -40,6 +40,44 @@ function CodeGptModule.run_cmd(opts)
         return -- Stop all further processing
     end
 
+    local is_recall = command == "recall" or command == "last"
+    local is_recall_action = false
+    local recall_offset = 1
+    
+    if is_recall then
+        if #opts.fargs == 1 then
+            is_recall_action = true
+        elseif #opts.fargs == 2 then
+            local num = tonumber(opts.fargs[2])
+            if num and num > 0 and math.floor(num) == num then
+                is_recall_action = true
+                recall_offset = num
+            end
+        end
+    end
+
+    if is_recall_action then
+        local last_response = History.get_last_response(bufnr, recall_offset)
+        if last_response then
+            local start_row, start_col, end_row, end_col = Utils.get_visual_selection()
+            Ui.popup(Utils.parse_lines(last_response), vim.g.codegpt_text_popup_filetype, bufnr, start_row, start_col, end_row, end_col)
+        else
+            vim.notify("No assistant response found at history index " .. recall_offset .. " for this buffer.", vim.log.levels.WARN, { title = "CodeGPT" })
+        end
+        return
+    end
+
+    local is_rewind = command == "rewind" or command == "undo"
+    if is_rewind and #opts.fargs == 1 then
+        local success = History.undo_last_exchange(bufnr)
+        if success then
+            vim.notify("Last conversation exchange removed from history.", vim.log.levels.INFO, { title = "CodeGPT" })
+        else
+            vim.notify("No history to rewind.", vim.log.levels.WARN, { title = "CodeGPT" })
+        end
+        return
+    end
+
     -- Handle `help` as a special case
     if command == "help" and #opts.fargs == 1 then
         local Help = require("codegpt.help")
@@ -48,9 +86,9 @@ function CodeGptModule.run_cmd(opts)
     end
 
     local cmd_opts = nil
-    -- If clear was used with arguments, we want it to fall through to chat/code_edit guessing logic
-    -- and prevent it from fetching the default 'clear' options (which triggers a redundant notification).
-    if not (command == "clear" and #opts.fargs > 1) then
+    -- If special commands were used with arguments, we want them to fall through to chat/code_edit guessing logic
+    -- and prevent them from fetching default options.
+    if not ((command == "clear" or is_recall or is_rewind) and #opts.fargs > 1) then
         cmd_opts = CommandsList.get_cmd_opts(command)
     end
 

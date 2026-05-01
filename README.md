@@ -66,6 +66,8 @@ A full list of predefined commands are below
 | command      | input | Description |
 |--------------|---- |------------------------------------|
 | chat  |  command args | Will pass the given command args to LLM and return the response in a popup. |
+| recall / last | none or number | This command will display the last assistant response from the chat history in a new popup without altering the history. Optionally accept a number to go further back (e.g., `:Chat recall 2`). |
+| rewind / undo | none | This command will remove the last exchange (your prompt and the assistant's response) from the chat history. Useful for reverting a bad conversation turn. |
 | completion |  text selection | Will ask LLM to complete the selected code. |
 | code_edit  |  text selection and command args | Will ask LLM to apply the given instructions (the command args) to the selected code. |
 | explain  |  text selection | Will ask LLM to explain the selected code. |
