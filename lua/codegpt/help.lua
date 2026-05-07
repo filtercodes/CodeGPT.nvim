@@ -5,6 +5,7 @@ local M = {}
 
 local command_descriptions = {
     chat = "General purpose chat assistant. Use this for general questions, brainstorming, or when no code is selected. It maintains conversation history.",
+    search = "Triggers a web search (grounding) before answering to provide up-to-date information and reduce LLM hallucinations.",
     completion = "Completes the current code selection. Useful for finishing a function or block of code based on the context provided by the selection.",
     code_edit = "Modifies the selected code based on your instructions. Use this to refactor, change logic, or apply specific transformations to existing code.",
     explain = "Provides a detailed explanation of the selected code. It breaks down the logic and explains it in simple terms, useful for understanding complex legacy code.",
@@ -43,7 +44,7 @@ function M.get_help_lines()
     table.insert(lines, "## Commands")
 
     local commnds_listed = {
-        "chat", "completion", "code_edit", "explain", "doc", "tests",
+        "chat", "search", "completion", "code_edit", "explain", "doc", "tests",
         "opt", "debug", "question", "generate", "clear",
         "recall", "last", "rewind", "undo", "help"
     }
@@ -99,6 +100,14 @@ function M.get_help_lines()
     table.insert(lines, "`vim.g.codegpt_commands` (table)")
     table.insert(lines, "Overrides specific commands. Useful for using different models for different tasks (e.g., a cheaper model for docs, a smarter one for coding).")
     table.insert(lines, "Example: `vim.g.codegpt_commands = { doc = { model = 'gpt-3.5-turbo' } }`")
+    table.insert(lines, "")
+
+    table.insert(lines, "### Search (Grounding)")
+    table.insert(lines, "To set the search model.")
+    table.insert(lines, "")
+    table.insert(lines, "Example: `vim.g.codegpt_search_provider = anthropic`")
+    table.insert(lines, "`vim.g.codegpt_global_commands_defaults = { search_model = 'claude-sonnet-4-6' }`")
+    table.insert(lines, "Overrides default grounding model. Be aware that API specs might be different for older models")
     table.insert(lines, "")
 
     table.insert(lines, "### Chat History (Memory)")

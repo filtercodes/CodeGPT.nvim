@@ -113,6 +113,14 @@ vim.g["codegpt_commands_defaults"] = {
         callback_type = "text_popup",
         allow_empty_text_selection = true,
     },
+    ["search"] = {
+        user_message_template = "{{command_args}}",
+        system_message_template = "You are a helpful assistant. Use the web search tool to find up-to-date information to answer the user's query comprehensively.",
+        callback_type = "text_popup",
+        allow_empty_text_selection = true,
+        is_search_command = true,
+        loading_message = "Searching the web...",
+    },
     ["clear"] = {
         allow_empty_text_selection = true,
     },
@@ -132,6 +140,10 @@ vim.g["codegpt_commands_defaults"] = {
         allow_empty_text_selection = true,
     },
 }
+
+if vim.g["codegpt_show_search_sources"] == nil then
+    vim.g["codegpt_show_search_sources"] = true
+end
 
 -- Popup commands
 vim.g["codegpt_ui_commands"] = {

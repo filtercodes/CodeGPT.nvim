@@ -6,7 +6,6 @@ CodeGPT.nvim is a plugin for neovim that provides commands to interact with LLMs
 
 * Set environment variable for your prefered API key e.g. `OPENAI_API_KEY` [openai api key](https://platform.openai.com/account/api-keys).
 * The plugins 'plenary' and 'nui' are also required.
-* Optional: OpenAI's tokenizer [tiktoken](https://github.com/openai/tiktoken) is recommended for accurate token count estimate if using OpenAI LLM provider.
 
 Installing with packer.
 
@@ -30,11 +29,6 @@ Installing with plugged.
 Plug("nvim-lua/plenary.nvim")
 Plug("MunifTanjim/nui.nvim")
 Plug("filtercodes/CodeGPT.nvim")
-```
-
-Installing OpenAI's tokenizer
-```sh
-pip install tiktoken
 ```
 
 ## Commands
@@ -66,8 +60,7 @@ A full list of predefined commands are below
 | command      | input | Description |
 |--------------|---- |------------------------------------|
 | chat  |  command args | Will pass the given command args to LLM and return the response in a popup. |
-| recall / last | none or number | This command will display the last assistant response from the chat history in a new popup without altering the history. Optionally accept a number to go further back (e.g., `:Chat recall 2`). |
-| rewind / undo | none | This command will remove the last exchange (your prompt and the assistant's response) from the chat history. Useful for reverting a bad conversation turn. |
+| search |  prompt (optional text selection) | Triggers a web search (grounding) before answering to provide up-to-date information and reduce LLM hallucinations. |
 | completion |  text selection | Will ask LLM to complete the selected code. |
 | code_edit  |  text selection and command args | Will ask LLM to apply the given instructions (the command args) to the selected code. |
 | explain  |  text selection | Will ask LLM to explain the selected code. |
@@ -76,6 +69,8 @@ A full list of predefined commands are below
 | doc  |  text selection | Will ask LLM to document the selected code. |
 | opt  |  text selection | Will ask LLM to optimize the selected code. |
 | tests  |  text selection | Will ask LLM to write unit tests for the selected code. |
+| recall / last | none or number | This command will display the last assistant response from the chat history in a new popup without altering the history. Optionally accept a number to go further back (e.g., `:Chat recall 2`). |
+| rewind / undo | none | This command will remove the last exchange (your prompt and the assistant's response) from the chat history. Useful for reverting a bad conversation turn. |
 | clear | none | This command will delete current chat short term memory. |
 | help | none | Displays the help guide. |
 
@@ -96,7 +91,7 @@ A full list of overrides
 | name                    | default         | description                                                                                                                                                       |
 |-------------------------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | model                   | "gpt-5-nano" | The model to use.                                                                                                                                                 |
-| max_tokens              | 4096            | The maximum number of tokens to use including the prompt tokens.                                                                                                  |
+| max_tokens              | 16384            | The maximum number of tokens to use including the prompt tokens.                                                                                                  |
 | temperature             | 0.6             | 0 -> 1, what sampling temperature to use.                                                                                                                         |
 | system_message_template | ""              | Helps set the behavior of the assistant.                                                                                                                          |
 | user_message_template   | ""              | Instructs the assistant.                                                                                                                                          |
@@ -355,17 +350,15 @@ require('packer').startup(function(use)
 end)
 ```
 
-### Miscellaneous Configuration Options
+### Search (grounding) configuration
 
-``` lua
+`vim.g.codegpt_search_provider` - Defines which provider to use for the `:Chat search` command. Current supported options are `"gemini"` and `"anthropic"`. Defaults to `"gemini"`.
 
--- Open API key and api endpoint
-vim.g["codegpt_openai_api_key"] = os.getenv("OPENAI_API_KEY")
-vim.g["codegpt_chat_completions_url"] = "https://api.openai.com/v1/chat/completions"
-vim.g["codegpt_api_provider"] = "OpenAI" -- or Azure
+`vim.g.codegpt_show_search_sources` - Boolean (Default: `true`). Allows you to see the links/citations used by the LLM during a search displayed in the popup UI. If you are using a smaller model you can set it to `false` to deal with strict context limits.
 
--- clears visual selection after completion
-vim.g["codegpt_clear_visual_selection"] = true
+```lua
+vim.g.codegpt_search_provider = "anthropic"
+vim.g.codegpt_show_search_sources = true
 ```
 
 ## Callback Types

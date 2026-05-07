@@ -23,7 +23,13 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
   local start_row, start_col, end_row, end_col = Utils.get_visual_selection()
-  local provider = Providers.get_provider()
+
+  local provider_name = nil
+  if cmd_opts.is_search_command then
+      provider_name = vim.g.codegpt_search_provider or "gemini"
+  end
+  local provider = Providers.get_provider(provider_name)
+
   local request, user_message_text = provider.make_request(command, cmd_opts, command_args, text_selection, bufnr)
 
   if provider.has_streaming then
@@ -33,7 +39,8 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
       local ui_bufnr = ui_elem.bufnr
 
       -- Start spinner
-      local stop_spinner = Ui.start_spinner(ui_bufnr)
+      local loading_message = cmd_opts.loading_message or "Generating..."
+      local stop_spinner = Ui.start_spinner(ui_bufnr, loading_message)
       local is_first_chunk = true
       
       -- Throttling: Buffer for incoming chunks and a timer to flush them
@@ -42,6 +49,12 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
       
       local function flush_buffer()
           if pending_text ~= "" then
+              if is_first_chunk then
+                  stop_spinner()
+                  -- Clear the buffer completely before adding the first text
+                  vim.api.nvim_buf_set_lines(ui_bufnr, 0, -1, false, {})
+                  is_first_chunk = false
+              end
               local chunk = pending_text
               pending_text = ""
               Ui.append_to_buf(ui_bufnr, chunk)
@@ -54,14 +67,6 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
       -- Define Stream Handlers
       local stream_handlers = {
           on_chunk = function(text_chunk)
-              if is_first_chunk then
-                  vim.schedule(function()
-                      stop_spinner()
-                      -- Clear the buffer completely before adding the first text
-                      vim.api.nvim_buf_set_lines(ui_bufnr, 0, -1, false, {})
-                  end)
-                  is_first_chunk = false
-              end
               -- Append to pending buffer instead of direct UI call
               pending_text = pending_text .. text_chunk
           end,
@@ -110,7 +115,7 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
               vim.schedule(function()
                   flush_buffer()
                   stop_spinner()
-                  vim.notify("Stream Error: " .. err, vim.log.levels.ERROR)
+                  vim.notify("Stream Error: " .. tostring(err), vim.log.levels.ERROR)
               end)
           end
       }

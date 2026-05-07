@@ -35,6 +35,12 @@ function GeminiProvider.make_request(command, cmd_opts, command_args, text_selec
         model = cmd_opts.model,
     }
 
+    if cmd_opts.is_search_command then
+        request.tools = {
+            { google_search = vim.empty_dict() }
+        }
+    end
+
     return request, new_user_message_text
 end
 
@@ -85,8 +91,22 @@ function GeminiProvider.handle_response(json, user_message_text, cb, bufnr)
     elseif not json.candidates or not json.candidates[1] then
         print("Response is incomplete. Payload: " .. vim.fn.json_encode(json))
     else
-        if json.candidates[1].content and json.candidates[1].content.parts and json.candidates[1].content.parts[1] then
-            local response_text = json.candidates[1].content.parts[1].text
+        local candidate = json.candidates[1]
+        if candidate.content and candidate.content.parts and candidate.content.parts[1] then
+            local response_text = candidate.content.parts[1].text
+
+            if candidate.groundingMetadata and candidate.groundingMetadata.groundingChunks then
+                 local sources = {}
+                 for i, chunk in ipairs(candidate.groundingMetadata.groundingChunks) do
+                     if chunk.web and chunk.web.uri then
+                         local title = chunk.web.title or "Untitled"
+                         table.insert(sources, string.format("[%d] %s - %s", i, title, chunk.web.uri))
+                     end
+                 end
+                 if #sources > 0 then
+                     response_text = response_text .. "\n\n**Sources:**\n" .. table.concat(sources, "\n")
+                 end
+            end
 
             if response_text ~= nil then
                 if type(response_text) ~= "string" or response_text == "" then
@@ -131,6 +151,7 @@ function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
         
         local partial_data = ""
         local full_text = ""
+        local collected_sources = {}
 
         local function parse_chunk_line(line)
             local trimmed_line = vim.trim(line)
@@ -148,12 +169,32 @@ function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
 
                     if json and json.candidates and json.candidates[1] then
                          local candidate = json.candidates[1]
-                         if candidate.content and candidate.content.parts and candidate.content.parts[1] then
-                             return candidate.content.parts[1].text, nil
+                         local text_fragment = ""
+                         if candidate.content and candidate.content.parts and candidate.content.parts[1] and candidate.content.parts[1].text then
+                             text_fragment = text_fragment .. candidate.content.parts[1].text
+                         end
+
+                         if candidate.groundingMetadata and candidate.groundingMetadata.groundingChunks then
+                             for i, chunk in ipairs(candidate.groundingMetadata.groundingChunks) do
+                                 if chunk.web and chunk.web.uri then
+                                     local title = chunk.web.title or "Untitled"
+                                     table.insert(collected_sources, string.format("[%d] %s - %s", i, title, chunk.web.uri))
+                                 end
+                             end
+                         end
+
+                         if text_fragment ~= "" then
+                             return text_fragment, nil
                          elseif candidate.finishReason and candidate.finishReason ~= "STOP" then
                              return nil, "Gemini Stopped: " .. candidate.finishReason
                          end
                     end
+                end
+            elseif string.sub(trimmed_line, 1, 1) == "{" then
+                -- Attempt to parse non-SSE error response from the API
+                local ok, json = pcall(vim.json.decode, trimmed_line)
+                if ok and json and json.error then
+                     return nil, json.error.message or "Unknown Gemini API Error"
                 end
             end
             return nil, nil
@@ -165,31 +206,53 @@ function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
             raw = { "--no-buffer" },
             timeout = 20000, -- 20 seconds timeout
             stream = function(err, chunk)
+                -- DIAGNOSTIC: Print raw chunks directly to the UI
+                if chunk then
+                    vim.schedule(function()
+                        -- vim.notify("RAW CHUNK: " .. tostring(chunk), vim.log.levels.INFO)
+                    end)
+                end
+
                 if err then
-                    vim.schedule(function() 
-                        cb.on_error(err) 
+                    vim.schedule(function()
+                        vim.notify("Gemini Curl Error: " .. vim.inspect(err), vim.log.levels.ERROR)
+                        cb.on_error(err)
                         Api.run_finished_hook()
                     end)
                     return
                 end
-                
+
                 if not chunk then 
                     -- End of stream: Flush remaining partial data
                     vim.schedule(function()
+                         -- vim.notify("Gemini Stream End. Collected sources: " .. #collected_sources, vim.log.levels.DEBUG)
                          if partial_data and partial_data ~= "" then
                             local text_fragment, err_msg = parse_chunk_line(partial_data)
                             if err_msg then
+                                 vim.notify("Gemini Parse Error at EOF: " .. err_msg, vim.log.levels.ERROR)
                                  cb.on_error(err_msg)
                             elseif text_fragment then
                                 full_text = full_text .. text_fragment
                                 cb.on_chunk(text_fragment)
                             end
                         end
+
+                        if #collected_sources > 0 and vim.g["codegpt_show_search_sources"] then
+                             local sources_text = "\n\n**Sources:**\n" .. table.concat(collected_sources, "\n")
+                             cb.on_chunk(sources_text)
+                        end
+
+                        if full_text == "" then
+                            vim.notify("Gemini returned empty text", vim.log.levels.WARN)
+                        end
                         cb.on_complete(full_text)
                         Api.run_finished_hook()
                     end)
                     return 
                 end
+
+                -- Debug raw chunk
+                -- vim.schedule(function() print("Raw Chunk: " .. chunk) end)
 
                 partial_data = partial_data .. chunk
 
@@ -236,7 +299,10 @@ function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
                     local text_fragment, err_msg = parse_chunk_line(line_to_parse)
 
                     if err_msg then
-                        vim.schedule(function() cb.on_error(err_msg) end)
+                        vim.schedule(function()
+                            vim.notify("Gemini Parse Error: " .. err_msg, vim.log.levels.ERROR)
+                            cb.on_error(err_msg)
+                        end)
                     elseif text_fragment then
                         full_text = full_text .. text_fragment
                         cb.on_chunk(text_fragment)

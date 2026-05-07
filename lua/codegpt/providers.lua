@@ -6,8 +6,14 @@ local GeminiProvider = require("codegpt.providers.gemini")
 
 Providers = {}
 
-function Providers.get_provider()
-    local provider = vim.fn.tolower(vim.g["codegpt_api_provider"])
+function Providers.get_provider(provider_name)
+    local provider
+    if provider_name then
+        provider = vim.fn.tolower(provider_name)
+    else
+        provider = vim.fn.tolower(vim.g["codegpt_api_provider"] or "openai")
+    end
+
     if provider == "openai" then
         return OpenAIProvider
     elseif provider == "anthropic" then

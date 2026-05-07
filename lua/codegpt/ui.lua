@@ -134,14 +134,15 @@ function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_co
     return ui_elem
 end
 
-function Ui.start_spinner(bufnr)
+function Ui.start_spinner(bufnr, loading_message)
+    local msg = loading_message or "Generating..."
     local frames = Api.progress_bar_dots
     local idx = 1
     local timer = vim.loop.new_timer()
     
     -- Initial set
     if vim.api.nvim_buf_is_valid(bufnr) then
-        vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "  " .. frames[1] .. " Generating..." })
+        vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "  " .. frames[1] .. " " .. msg })
     end
 
     timer:start(100, 100, vim.schedule_wrap(function()
@@ -163,7 +164,7 @@ function Ui.start_spinner(bufnr)
         idx = (idx % #frames) + 1
         -- Only replace the first line.
         -- Use pcall in case buffer was closed mid-tick
-        pcall(vim.api.nvim_buf_set_lines, bufnr, 0, 1, false, { "  " .. frames[idx] .. " Generating..." })
+        pcall(vim.api.nvim_buf_set_lines, bufnr, 0, 1, false, { "  " .. frames[idx] .. " " .. msg })
     end))
 
     return function()
@@ -186,27 +187,25 @@ function Ui.append_to_buf(bufnr, text_chunk)
         return
     end
 
-    vim.schedule(function()
-        if not vim.api.nvim_buf_is_valid(bufnr) then
-            return
-        end
+    if not vim.api.nvim_buf_is_valid(bufnr) then
+        return
+    end
 
-        local current_line_count = vim.api.nvim_buf_line_count(bufnr)
-        local last_line_len = 0
-        if current_line_count > 0 then
-            local last_line = vim.api.nvim_buf_get_lines(bufnr, current_line_count - 1, current_line_count, false)[1]
-            last_line_len = #last_line
-        end
+    local current_line_count = vim.api.nvim_buf_line_count(bufnr)
+    local last_line_len = 0
+    if current_line_count > 0 then
+        local last_line = vim.api.nvim_buf_get_lines(bufnr, current_line_count - 1, current_line_count, false)[1]
+        last_line_len = #last_line
+    end
 
-        -- Append the chunk at the end of the buffer
-        -- nvim_buf_set_text handles newlines within the text_chunk correctly.
-        vim.api.nvim_buf_set_text(bufnr, current_line_count - 1, last_line_len, current_line_count - 1, last_line_len, vim.split(text_chunk, '\n', { plain = true }))
-    end)
+    -- Append the chunk at the end of the buffer
+    -- nvim_buf_set_text handles newlines within the text_chunk correctly.
+    vim.api.nvim_buf_set_text(bufnr, current_line_count - 1, last_line_len, current_line_count - 1, last_line_len, vim.split(text_chunk, '\n', { plain = true }))
 end
 
 function Ui.popup(lines, filetype, bufnr, start_row, start_col, end_row, end_col)
     local ui_elem = Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_col)
-    vim.api.nvim_buf_set_lines(ui_elem.bufnr, 0, 1, false, lines)
+    vim.api.nvim_buf_set_lines(ui_elem.bufnr, 0, -1, false, lines)
 end
 
 return Ui

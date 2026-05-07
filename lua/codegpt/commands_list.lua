@@ -21,7 +21,7 @@ local provider_defaults = {
         model = "qwen3:8b",
     },
     anthropic = {
-        model = "claude-haiku-4-5",
+        model = "claude-haiku-4-5-20251001",
         max_tokens = 4096,
     },
     gemini = {
@@ -87,6 +87,25 @@ function CommandsList.get_cmd_opts(cmd)
     end
     if user_cmd_opts ~= nil then
         opts = vim.tbl_extend("force", opts, user_cmd_opts)
+    end
+
+    -- Handle decoupled search model logic
+    if opts.is_search_command then
+        local search_provider = vim.g.codegpt_search_provider or "gemini"
+
+        -- Get default search model for the selected search provider
+        local default_search_model
+        if search_provider == "gemini" then
+            default_search_model = "gemini-2.5-flash"
+        elseif search_provider == "anthropic" then
+            default_search_model = "claude-sonnet-4-6"
+        end
+
+        -- Resolution order:
+        -- 1. Global user setting (`vim.g.codegpt_search_model`)
+        -- 2. Command-specific `search_model` override
+        -- 3. Provider default for search
+        opts.model = vim.g.codegpt_search_model or opts.search_model or default_search_model
     end
 
     -- Model is configured?
