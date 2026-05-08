@@ -4,7 +4,7 @@ CodeGPT.nvim is a plugin for neovim that provides commands to interact with LLMs
 
 ## Installation
 
-* Set environment variable for your prefered API key e.g. `OPENAI_API_KEY` [openai api key](https://platform.openai.com/account/api-keys).
+* Set environment variable for your prefered API key e.g. `ANTHROPIC_API_KEY` [Claude API key](https://platform.claude.com/settings/workspaces/default/keys).
 * The plugins 'plenary' and 'nui' are also required.
 
 Installing with packer.
@@ -18,17 +18,28 @@ use({
    },
    config = function()
       require("codegpt.config")
-      vim.g.codegpt_api_provider = "ollama" -- other options are 'gemini', 'anthropic', 'openai', etc.
+      vim.g.codegpt_api_provider = "ollama" -- Run a local model with ollama
+      vim.g["codegpt_global_commands_defaults"] = { model = "qwen3.6" }
+      -- Add other commands (explained further in this readme file)
    end
 })
 ```
 
-Installing with plugged.
+Installing with vim-plug.
 
 ```vim
+" Install plugins
 Plug("nvim-lua/plenary.nvim")
 Plug("MunifTanjim/nui.nvim")
-Plug("filtercodes/CodeGPT.nvim")
+Plug('filtercodes/CodeGPT.nvim')
+
+call plug#end()
+
+" Configuration after the plugins are loaded
+lua << EOF
+    require("codegpt.config")
+    vim.g.codegpt_api_provider = "gemini"
+EOF
 ```
 
 ## Commands

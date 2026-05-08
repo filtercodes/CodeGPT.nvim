@@ -139,10 +139,13 @@ function Ui.start_spinner(bufnr, loading_message)
     local frames = Api.progress_bar_dots
     local idx = 1
     local timer = vim.loop.new_timer()
+    local start_time = vim.loop.now()
+    local ns_id = vim.api.nvim_create_namespace("codegpt_spinner")
     
     -- Initial set
     if vim.api.nvim_buf_is_valid(bufnr) then
-        vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "  " .. frames[1] .. " " .. msg })
+        local base_text = "  " .. frames[1] .. " " .. msg
+        vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { base_text })
     end
 
     timer:start(100, 100, vim.schedule_wrap(function()
@@ -162,9 +165,23 @@ function Ui.start_spinner(bufnr, loading_message)
         end
 
         idx = (idx % #frames) + 1
+        local elapsed_ms = vim.loop.now() - start_time
+        local elapsed_sec = math.floor(elapsed_ms / 1000)
+
+        local base_text = "  " .. frames[idx] .. " " .. msg
+        local display_text = base_text
+        if elapsed_sec >= 5 then
+            display_text = base_text .. string.format(" (%ds)", elapsed_sec)
+        end
+
         -- Only replace the first line.
         -- Use pcall in case buffer was closed mid-tick
-        pcall(vim.api.nvim_buf_set_lines, bufnr, 0, 1, false, { "  " .. frames[idx] .. " " .. msg })
+        pcall(function()
+            vim.api.nvim_buf_set_lines(bufnr, 0, 1, false, { display_text })
+            if elapsed_sec >= 5 then
+                vim.api.nvim_buf_add_highlight(bufnr, ns_id, "Comment", 0, #base_text, -1)
+            end
+        end)
     end))
 
     return function()
