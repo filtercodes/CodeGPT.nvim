@@ -48,18 +48,22 @@ The top-level command is `:Chat`. The behavior is different depending on whether
 
 ### Chat
 * `:Chat hello world` without any text selection will trigger the `chat` command. This will send the arguments `hello world` and show the results in a popup.
+
 ![chat](examples/chat.gif?raw=true)
 
 ### Completion
 * `:Chat` with text selection will trigger the `completion` command, LLM will try to complete the selected code snippet.
+
 ![completion](examples/completion.gif?raw=true)
 
 ### Code Edit
 * `:Chat some instructions` with text selection and command args will invoke the `code_edit` command. This will treat the command args as instructions on what to do with the code snippet. In the below example, `:Chat refactor to use iteration` will apply the instruction `refactor to use iteration` to the selected code.
+
 ![code_edit](examples/code_edit.gif?raw=true)
 
 ### Code Edit
 * `:Chat <command>` if there is only one argument and that argument matches a command, it will invoke that command with the given text selection. In the below example `:Chat tests` will attempt to write units for the selected code.
+
 ![tests](examples/tests.gif?raw=true)
 
 ### Help
