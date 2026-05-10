@@ -99,8 +99,9 @@ function CommandsList.get_cmd_opts(cmd)
             default_search_model = "gemini-2.5-flash"
         elseif search_provider == "anthropic" then
             default_search_model = "claude-sonnet-4-6"
+        elseif search_provider == "openai" then
+            default_search_model = "gpt-5.5"
         end
-
         -- Resolution order:
         -- 1. Global user setting (`vim.g.codegpt_search_model`)
         -- 2. Command-specific `search_model` override

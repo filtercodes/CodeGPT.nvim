@@ -367,7 +367,7 @@ end)
 
 ### Search (grounding) configuration
 
-`vim.g.codegpt_search_provider` - Defines which provider to use for the `:Chat search` command. Current supported options are `"gemini"` and `"anthropic"`. Defaults to `"gemini"`.
+`vim.g.codegpt_search_provider` - Defines which provider to use for the `:Chat search` command. Current supported options are `"gemini"`, `"openai"` and `"anthropic"`. Defaults to `"gemini"`.
 
 `vim.g.codegpt_show_search_sources` - Boolean (Default: `true`). Allows you to see the links/citations used by the LLM during a search displayed in the popup UI. If you are using a smaller model you can set it to `false` to deal with strict context limits.
 

@@ -23,8 +23,14 @@ function OpenAIProvider.make_request(command, cmd_opts, command_args, text_selec
 
     local request = {
         model = cmd_opts.model,
-        messages = messages_for_api,
     }
+
+    if cmd_opts.is_search_command then
+        request.input = messages_for_api
+        request.tools = { { type = "web_search" } }
+    else
+        request.messages = messages_for_api
+    end
 
     request = vim.tbl_extend("force", request, cmd_opts.extra_params)
     return request, new_user_message_text
@@ -77,6 +83,45 @@ function OpenAIProvider.handle_response(json, user_message_text, cb, bufnr)
         print("Response empty")
     elseif json.error and json.error.message then
         print("Error: " .. json.error.message)
+    elseif json.output then
+        -- Handle v1/responses format
+        local response_text = ""
+        local sources = {}
+        for _, out_item in ipairs(json.output) do
+            if out_item.type == "message" and out_item.content then
+                for _, content_item in ipairs(out_item.content) do
+                    if content_item.type == "output_text" then
+                        if content_item.text then
+                            response_text = response_text .. content_item.text
+                        end
+                        if content_item.annotations then
+                            for _, annotation in ipairs(content_item.annotations) do
+                                if annotation.type == "url_citation" and annotation.url then
+                                    local title = annotation.title or "Untitled"
+                                    table.insert(sources, string.format("- [%s](%s)", title, annotation.url))
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        if #sources > 0 and vim.g["codegpt_show_search_sources"] then
+            response_text = response_text .. "\n\n**Sources:**\n" .. table.concat(sources, "\n")
+        end
+
+        if response_text ~= "" then
+            History.add_message(bufnr, "user", user_message_text)
+            History.add_message(bufnr, "assistant", response_text)
+            if vim.g["codegpt_clear_visual_selection"] and vim.api.nvim_buf_is_valid(bufnr) then
+                vim.api.nvim_buf_set_mark(bufnr, "<", 0, 0, {})
+                vim.api.nvim_buf_set_mark(bufnr, ">", 0, 0, {})
+            end
+            cb(Utils.parse_lines(response_text))
+        else
+            print("Error: No response text found in v1/responses output")
+        end
     elseif json.choices and json.choices[1] and json.choices[1].message then
         local response_text = json.choices[1].message.content
         if response_text ~= nil then
@@ -103,6 +148,9 @@ end
 
 function OpenAIProvider.make_call(payload, user_message_text, cb, bufnr)
     local url = vim.g["codegpt_chat_completions_url"]
+    if payload.tools and payload.tools[1] and payload.tools[1].type == "web_search" then
+        url = vim.g["codegpt_openai_responses_url"] or "https://api.openai.com/v1/responses"
+    end
     local headers = OpenAIProvider.make_headers()
 
     Api.run_started_hook()
@@ -176,7 +224,33 @@ function OpenAIProvider.make_call(payload, user_message_text, cb, bufnr)
                     if ok and json then
                         if json.error then
                             vim.schedule(function() cb.on_error(json.error.message) end)
+                        elseif json.type == "response.output_text.delta" and json.delta then
+                            full_text = full_text .. json.delta
+                            cb.on_chunk(json.delta)
+                        elseif json.type == "response.completed" and json.response and json.response.output then
+                            -- Extract citations from final response
+                            local sources = {}
+                            for _, out_item in ipairs(json.response.output) do
+                                if out_item.type == "message" and out_item.content then
+                                    for _, content_item in ipairs(out_item.content) do
+                                        if content_item.type == "output_text" and content_item.annotations then
+                                            for _, annotation in ipairs(content_item.annotations) do
+                                                if annotation.type == "url_citation" and annotation.url then
+                                                    local title = annotation.title or "Untitled"
+                                                    table.insert(sources, string.format("- [%s](%s)", title, annotation.url))
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                            if #sources > 0 and vim.g["codegpt_show_search_sources"] then
+                                local sources_text = "\n\n**Sources:**\n" .. table.concat(sources, "\n")
+                                full_text = full_text .. sources_text
+                                cb.on_chunk(sources_text)
+                            end
                         elseif json.choices and json.choices[1] and json.choices[1].delta and json.choices[1].delta.content then
+                            -- Standard chat completions format
                             local text = json.choices[1].delta.content
                             full_text = full_text .. text
                             cb.on_chunk(text)
