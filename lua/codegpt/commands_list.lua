@@ -31,6 +31,9 @@ local provider_defaults = {
     groq = {
         model = "qwen/qwen3-32b",
     },
+    local_grounding = {
+        model = "qwen3:8b",
+    },
 }
 
 CommandsList.CallbackTypes = {
@@ -101,6 +104,8 @@ function CommandsList.get_cmd_opts(cmd)
             default_search_model = "claude-sonnet-4-6"
         elseif search_provider == "openai" then
             default_search_model = "gpt-5.5"
+        elseif search_provider == "local_grounding" then
+            default_search_model = "qwen3:8b"
         end
         -- Resolution order:
         -- 1. Global user setting (`vim.g.codegpt_search_model`)

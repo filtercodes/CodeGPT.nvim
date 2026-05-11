@@ -15,13 +15,20 @@ function GeminiProvider.make_request(command, cmd_opts, command_args, text_selec
 
     -- Payload
     local messages_for_api = {}
-    for _, msg in ipairs(past_messages) do
-        local role = (msg.role == "assistant" and "model" or "user")
-        if msg.content and vim.trim(msg.content) ~= "" then
-            table.insert(messages_for_api, {
-                role = role,
-                parts = { { text = msg.content } },
-            })
+    local include_history = true
+    if cmd_opts.is_search_command and vim.g["codegpt_ground_with_history"] == false then
+        include_history = false
+    end
+
+    if include_history then
+        for _, msg in ipairs(past_messages) do
+            local role = (msg.role == "assistant" and "model" or "user")
+            if msg.content and vim.trim(msg.content) ~= "" then
+                table.insert(messages_for_api, {
+                    role = role,
+                    parts = { { text = msg.content } },
+                })
+            end
         end
     end
     table.insert(messages_for_api, {

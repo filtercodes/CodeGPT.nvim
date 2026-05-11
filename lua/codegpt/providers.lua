@@ -3,6 +3,7 @@ local AnthropicProvider = require("codegpt.providers.anthropic")
 local OllaMaProvider = require("codegpt.providers.ollama")
 local GroqProvider = require("codegpt.providers.groq")
 local GeminiProvider = require("codegpt.providers.gemini")
+local LocalGroundingProvider = require("codegpt.providers.local_grounding")
 
 Providers = {}
 
@@ -24,6 +25,8 @@ function Providers.get_provider(provider_name)
         return GroqProvider
     elseif provider == "gemini" then
         return GeminiProvider
+    elseif provider == "local_grounding" then
+        return LocalGroundingProvider
     else
         error("Provider not found: " .. provider)
     end

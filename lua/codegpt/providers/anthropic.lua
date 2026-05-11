@@ -15,8 +15,15 @@ function AnthropicProvider.make_request(command, cmd_opts, command_args, text_se
         cmd_opts)
 
     local messages_for_api = {}
-    for _, msg in ipairs(past_messages) do
-        table.insert(messages_for_api, msg)
+    local include_history = true
+    if cmd_opts.is_search_command and vim.g["codegpt_ground_with_history"] == false then
+        include_history = false
+    end
+
+    if include_history then
+        for _, msg in ipairs(past_messages) do
+            table.insert(messages_for_api, msg)
+        end
     end
     table.insert(messages_for_api, {role="user", content=new_user_message_text})
 

@@ -40,13 +40,19 @@ vim.g["codegpt_horizontal_popup_size"] = "20%"
 vim.g["codegpt_vertical_popup_size"] = "20%"
 
 -- Set timeout for chat history
-vim.g["codegpt_chat_history_timeout"] = 900
+if vim.g["codegpt_chat_history_timeout"] == nil then
+    vim.g["codegpt_chat_history_timeout"] = 900
+end
 
 -- Set if the chat history should expire based on time
-vim.g["codegpt_chat_history_time_based_expiry"] = true
+if vim.g["codegpt_chat_history_time_based_expiry"] == nil then
+    vim.g["codegpt_chat_history_time_based_expiry"] = true
+end
 
 -- Set max messages for chat history
-vim.g["codegpt_chat_history_max_messages"] = 20
+if vim.g["codegpt_chat_history_max_messages"] == nil then
+    vim.g["codegpt_chat_history_max_messages"] = 20
+end
 
 vim.g["codegpt_commands_defaults"] = {
     ["completion"] = {
@@ -143,6 +149,10 @@ vim.g["codegpt_commands_defaults"] = {
 
 if vim.g["codegpt_show_search_sources"] == nil then
     vim.g["codegpt_show_search_sources"] = true
+end
+
+if vim.g["codegpt_ground_with_history"] == nil then
+    vim.g["codegpt_ground_with_history"] = false
 end
 
 -- Popup commands

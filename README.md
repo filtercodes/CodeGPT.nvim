@@ -355,26 +355,23 @@ These can be configured globally (`init.lua` or `plugins.lua`):
 vim.g.codegpt_chat_history_timeout = 900   -- 15 minutes
 vim.g.codegpt_chat_history_max_messages = 20 -- 20 messages total
 vim.g.codegpt_chat_history_time_based_expiry = true
-
--- Vars have to be set before "require" block
-require('packer').startup(function(use)
-  use({
-    "filtercodes/CodeGPT.nvim",
-    requires -- ... etc
-  })
-end)
 ```
 
 ### Search (grounding) configuration
 
-`vim.g.codegpt_search_provider` - Defines which provider to use for the `:Chat search` command. Current supported options are `"gemini"`, `"openai"` and `"anthropic"`. Defaults to `"gemini"`.
+`vim.g.codegpt_search_provider` - Defines which provider to use for the `:Chat search` command. Current supported options are `"gemini"`, `"openai"`, `"anthropic"` and `"local_grounding"`. Defaults to `"gemini"`.
 
 `vim.g.codegpt_show_search_sources` - Boolean (Default: `true`). Allows you to see the links/citations used by the LLM during a search displayed in the popup UI. If you are using a smaller model you can set it to `false` to deal with strict context limits.
+
+`vim.g.codegpt_ground_with_history` - Boolean (Default: `false`). If you want to send previous conversation history to the grounding model set it to `true`. This might be useful for model to pick up more info about the search term from the context, but also conversation history might confuse smaller models or create biased grounding.
 
 ```lua
 vim.g.codegpt_search_provider = "anthropic"
 vim.g.codegpt_show_search_sources = true
+vim.g.codegpt_ground_with_history = false
 ```
+
+Note that `"local_grounding"` requires `TAVILY_API_KEY` as an enviroment variable. Local Ollama model uses internet search results from [Tavily](https://app.tavily.com/home) to construct a grounded answer.
 
 ## Callback Types
 Callback types control what to do with the response
