@@ -215,9 +215,18 @@ function Ui.append_to_buf(bufnr, text_chunk)
         last_line_len = #last_line
     end
 
+    -- Identify if we should auto-scroll (cursor is at the last line before appending)
+    local winid = vim.fn.bufwinid(bufnr)
+    local should_scroll = winid ~= -1 and vim.api.nvim_win_get_cursor(winid)[1] == current_line_count
+
     -- Append the chunk at the end of the buffer
     -- nvim_buf_set_text handles newlines within the text_chunk correctly.
     vim.api.nvim_buf_set_text(bufnr, current_line_count - 1, last_line_len, current_line_count - 1, last_line_len, vim.split(text_chunk, '\n', { plain = true }))
+
+    -- Auto-scroll if following
+    if should_scroll then
+        pcall(vim.api.nvim_win_set_cursor, winid, {vim.api.nvim_buf_line_count(bufnr), 0})
+    end
 end
 
 function Ui.popup(lines, filetype, bufnr, start_row, start_col, end_row, end_col)

@@ -39,6 +39,11 @@ function Render.render(cmd, template, command_args, text_selection, cmd_opts)
             or ""
     end
 
+    if text_selection and text_selection ~= "" and not string.find(template, "{{text_selection}}") then
+        local context_block = string.format("Here is some code context:\n```%s\n%s\n```\n\n", Utils.get_filetype(), text_selection)
+        template = context_block .. template
+    end
+
     template = safe_replace(template, "{{filetype}}", Utils.get_filetype())
     template = safe_replace(template, "{{text_selection}}", text_selection)
     template = safe_replace(template, "{{command_args}}", command_args)

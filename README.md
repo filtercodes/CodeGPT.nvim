@@ -1,6 +1,6 @@
 # CodeGPT.nvim
 
-CodeGPT.nvim is a plugin for neovim that provides commands to interact with LLMs. The focus is around code related usages: code completion, refactorings, generating docs, etc.
+CodeGPT.nvim is a plugin for Neovim that provides commands to interact with LLMs. The focus is around code related usages: code completion, refactorings, generating docs, etc.
 
 ## Installation
 
@@ -19,7 +19,9 @@ use({
    config = function()
       require("codegpt.config")
       vim.g.codegpt_api_provider = "ollama" -- Run a local model with ollama
-      vim.g["codegpt_global_commands_defaults"] = { model = "qwen3.6" }
+      vim.g.codegpt_provider_defaults = {
+          ollama = { model = "qwen3.6" }
+      }
       -- Add other commands (explained further in this readme file)
    end
 })
@@ -42,51 +44,62 @@ lua << EOF
 EOF
 ```
 
+Note on Neovim 0.12 and later - to fix problems with status line duplication, enable new UI engine
+
+```lua
+pcall(function() require('vim._core.ui2').enable() end)
+```
+
 ## Commands
 
 The top-level command is `:Chat`. The behavior is different depending on whether text is selected and/or arguments are passed.
 
+### Direct Provider Commands & Presets
+In addition to `:Chat` (which uses globally configured default provider), you can invoke specific providers directly, bypassing default settings eg.:
+* `:Gemini <prompt>`
+* `:Claude <prompt>` etc.
+
+Using these commands behaves exactly like `:Chat`, but routes the request to the specified API with its default model.
+
+There are also configurable presets: `:Chat1`, `:Chat2`, and `:Chat3`. To quickly switch between different models and providers without changing global configuration (e.g., setting `:Chat2` to always use Anthropic's Claude 3.5 Sonnet while `:Chat` remains local Ollama instance). See the "Overriding Command Configurations" section below for details.
+
 ### Chat
-* `:Chat hello world` without any text selection will trigger the `chat` command. This will send the arguments `hello world` and show the results in a popup.
+* `:Chat hello world` (with or without text selection) will trigger the `chat` command. This will send the arguments `hello world` and show the results in a popup.
 
 ![chat](examples/chat.gif?raw=true)
 
 ### Completion
-* `:Chat` with text selection will trigger the `completion` command, LLM will try to complete the selected code snippet.
+* `:Chat complete` with text selection will trigger the `complete` command, LLM will try to complete the selected code snippet.
 
-![completion](examples/completion.gif?raw=true)
-
-### Code Edit
-* `:Chat some instructions` with text selection and command args will invoke the `code_edit` command. This will treat the command args as instructions on what to do with the code snippet. In the below example, `:Chat refactor to use iteration` will apply the instruction `refactor to use iteration` to the selected code.
-
-![code_edit](examples/code_edit.gif?raw=true)
+![complete](examples/completion.gif?raw=true)
 
 ### Code Edit
+* `:Chat edit some instructions` with text selection and command args will invoke the `edit` command. This will treat the command args as instructions on what to do with the code snippet. In the below example, `:Chat refactor to use iteration` will apply the instruction `refactor to use iteration` to the selected code.
+
+![edit](examples/code_edit.gif?raw=true)
+
+### Coustom Commands
 * `:Chat <command>` if there is only one argument and that argument matches a command, it will invoke that command with the given text selection. In the below example `:Chat tests` will attempt to write units for the selected code.
 
 ![tests](examples/tests.gif?raw=true)
 
-### Help
-* `:Chat help` will open a help window listing available commands, keybindings, and configuration options.
-
-
-A full list of predefined commands are below
+### A list of predefined commands
 
 | command      | input | Description |
 |--------------|---- |------------------------------------|
-| chat  |  command args | Will pass the given command args to LLM and return the response in a popup. |
-| search |  prompt (optional text selection) | Triggers a web search (grounding) before answering to provide up-to-date information and reduce LLM hallucinations. |
-| completion |  text selection | Will ask LLM to complete the selected code. |
-| code_edit  |  text selection and command args | Will ask LLM to apply the given instructions (the command args) to the selected code. |
+| chat  |  prompt | Will pass the given prompt to LLM and return the response in a popup. |
+| search |  prompt (optional text selection) | Will trigger a web search (grounding) before answering to provide up-to-date information and reduce LLM hallucinations. |
+| complete |  text selection | Will ask LLM to complete the selected code. |
+| edit  |  text selection + prompt | Will ask LLM to apply the given instructions to the selected code. |
 | explain  |  text selection | Will ask LLM to explain the selected code. |
-| question  |  text selection | Will pass the commands args to LLM and return the answer in a text popup. |
+| question  |  text selection + prompt | Will pass the question to LLM and return the answer in a text popup. |
 | debug  |  text selection | Will pass the code selectiont to LLM analyze it for bugs, the results will be in a text popup. |
 | doc  |  text selection | Will ask LLM to document the selected code. |
 | opt  |  text selection | Will ask LLM to optimize the selected code. |
 | tests  |  text selection | Will ask LLM to write unit tests for the selected code. |
 | recall / last | none or number | This command will display the last assistant response from the chat history in a new popup without altering the history. Optionally accept a number to go further back (e.g., `:Chat recall 2`). |
 | rewind / undo | none | This command will remove the last exchange (your prompt and the assistant's response) from the chat history. Useful for reverting a bad conversation turn. |
-| clear | none | This command will delete current chat short term memory. |
+| clear | none | Will delete complete chat short-term memory to start blank. |
 | help | none | Displays the help guide. |
 
 ## Overriding Command Configurations
@@ -95,11 +108,11 @@ The configuration option `vim.g["codegpt_commands_defaults"] = {}` can be used t
 
 ```lua
 vim.g["codegpt_commands_defaults"] = {
-  ["completion"] = {
+  ["complete"] = {
       user_message_template = "This is a template of the message passed to LLM. Hello, the code snippet is {{text_selection}}."
 }
 ```
-The above, overrides the message template for the `completion` command.
+The above, overrides the message template for the completion command.
 
 A full list of overrides
 
@@ -107,7 +120,7 @@ A full list of overrides
 |-------------------------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | model                   | "gpt-5-nano" | The model to use.                                                                                                                                                 |
 | max_tokens              | 16384            | The maximum number of tokens to use including the prompt tokens.                                                                                                  |
-| temperature             | 0.6             | 0 -> 1, what sampling temperature to use.                                                                                                                         |
+| temperature             | 0.2             | 0 -> 1, what sampling temperature to use.                                                                                                                         |
 | system_message_template | ""              | Helps set the behavior of the assistant.                                                                                                                          |
 | user_message_template   | ""              | Instructs the assistant.                                                                                                                                          |
 | callback_type           | "replace_lines" | Controls what the plugin does with the response                                                                                                                   |
@@ -115,20 +128,44 @@ A full list of overrides
 | extra_params            | {}              | A table of custom parameters to be sent to the API.                                                                                                               |
 
 
-### Overriding the global defaults
+### Configuring Providers and Models
 
-The overrides can be set globally using `vim.g["codegpt_global_commands_defaults"]`. This can be useful to setup a custom configuration for APIs that emulate OpenAI such as LocalAI.
+Define default models for each provider using `vim.g["codegpt_provider_defaults"]` and `vim.g["codegpt_search_model_defaults"]`. The plugin will use these depending on the active provider or command.
 
 ```lua
-    vim.g["codegpt_global_commands_defaults"] = {
-        model = "mixtral",
-        max_tokens = 4096,
-        temperature = 0.4,
-        -- extra_parms = { -- optional list of extra parameters to send to the API
-        --     presence_penalty = 1,
-        --     frequency_penalty= 1
-        -- }
-    }
+vim.g["codegpt_provider_defaults"] = {
+    ollama = { model = "qwen3.6" },
+    anthropic = { model = "claude-haiku-4-5" },
+}
+
+vim.g["codegpt_search_model_defaults"] = {
+    local_grounding = { model = "gemma4" },
+    gemini = { model = "gemini-2.5-flash" }
+}
+```
+
+### Overriding Global Defaults
+
+Generic options (like temperature) can be set globally using `vim.g["codegpt_global_commands_defaults"]`.
+
+```lua
+vim.g["codegpt_global_commands_defaults"] = {
+    temperature = 0.4,
+    -- extra_params = { presence_penalty = 1 }
+}
+```
+
+### Configuring Presets (:Chat1, :Chat2, :Chat3)
+
+Configure the preset commands (`:Chat1`, `:Chat2`, `:Chat3`) by appending numbers to the global variables. This is useful for mapping specific commands to different APIs or models without changing your default `:Chat` settings.
+
+```lua
+-- Configure :Chat1 to use Ollama with a specific model
+vim.g["codegpt_api_provider1"] = "ollama"
+vim.g["codegpt_search_provider1"] = "local_grounding"
+vim.g["codegpt_global_commands_defaults1"] = {
+    model = "deepseek-coder-v2"
+}
 ```
 
 
@@ -151,7 +188,7 @@ Some commands have templates that use the `{{language_instructions}}` macro to a
 
 ```lua
 vim.g["codegpt_commands_defaults"] = {
-  ["completion"] = {
+  ["complete"] = {
       language_instructions = {
           cpp = "Use trailing return type.",
       },
@@ -159,12 +196,12 @@ vim.g["codegpt_commands_defaults"] = {
 }
 ```
 
-The above adds a specific `Use trailing return type.` to the command `completion` for the filetype `cpp`.
+The above adds a specific `Use trailing return type.` to the command `complete` for the filetype `cpp`.
 
 
 #### Command Args
 
-Commands are normally a single value, for example `:Chat completion`. Normally, a command such as `:Chat completion value` will be interpreted as a `code_edit` command, with the arguments `"completion value"`, and not `completion` with `"value"`. You can make commands accept additional arguments by using the `{{command_args}}` macro anywhere in either `user_message_template` or `system_message_template`. For example:
+Commands are normally a single value, for example `:Chat complete`. You can make commands accept additional arguments by using the `{{command_args}}` macro anywhere in either `user_message_template` or `system_message_template`. For example:
 
 ```lua
 vim.g["codegpt_commands"] = {
@@ -202,8 +239,7 @@ The default command configuration is:
 
 ```lua
 {
-    model = "gpt-5-nano",
-    temperature = 0.6,
+    temperature = 0.2,
     number_of_choices = 1,
     system_message_template = "",
     user_message_template = "",
@@ -231,7 +267,7 @@ vim.g["codegpt_hooks"] = {
 
 ### Lualine Status Component
 
-There is a convenience function `get_status` so that you can add a status component to lualine.
+There is a convenience function `get_status` so that you can add a status component to lualine. This function provides an animated progress spinner while a request is running, followed by the name of the last command and the active LLM model (e.g., `⠋ chat  🤖 qwen3.6:27b`).
 
 ```lua
 local CodeGPTModule = require("codegpt")
@@ -245,6 +281,25 @@ require('lualine').setup({
 })
 ```
 
+To enable the animation of the progress spinner, add `require('lualine').refresh()` to the CodeGPT hooks in configuration so that the status bar redraws during the request:
+
+```lua
+vim.g["codegpt_hooks"] = {
+  request_started = function()
+    require('lualine').refresh()
+  end,
+  request_finished = vim.schedule_wrap(function()
+    require('lualine').refresh()
+  end)
+}
+```
+
+Alternativelly if you don't use `lualine` vim.notify print will tell you which model is currently in use. If you do use `lualine` you might want to set this to `false`.
+
+```lua
+vim.g.codegpt_print_model = false
+```
+
 ### Popup options
 
 #### Popup commands
@@ -253,6 +308,14 @@ The default filetype of the text popup window is markdown. You can change this b
 
 ```lua
 vim.g["codegpt_text_popup_filetype"] = "markdown"
+```
+
+To make the internal code examples have syntax highlighting add your prefered languages to `init.vim`:
+```vim
+" Define the languages
+let g:markdown_fenced_languages = ['python', 'javascript', 'lua', 'cpp']
+" Disable built-in Tree-sitter parser for Markdown
+autocmd FileType markdown lua vim.treesitter.stop()
 ```
 
 #### Popup commands
@@ -304,28 +367,31 @@ vim.g["codegpt_popup_window_options"] = {
 }
 ```
 
-#### Popup window color setup - Vimscript
+#### Popup window color setup
 
-``` lua
-highlight NormalFloat guibg=#1e222a ctermbg=235
-highlight FloatBorder guifg=#3b82f6 ctermfg=67
+An example of custom dark mode in vimscript.
+
+``` vim
+highlight NormalFloat guibg=#2f2f2f ctermbg=235
+highlight FloatBorder guifg=#8ec07c ctermfg=108
 ```
 
 #### Move completion to popup window
 
-For any command, you can override the callback type to move the completion to a popup window. An example below is for overriding the `completion` command.
+For any command, you can override the callback type to move the completion to a popup window. An example below is for overriding the `complete` command.
 
 ```lua
 require("codegpt.config")
 
 vim.g["codegpt_commands"] = {
-  ["completion"] = {
+  ["complete"] = {
     callback_type = "code_popup",
   },
 }
 ```
 
 ### Horizontal or vertical split window
+
 If you prefer a horizontal or vertical split window, you can change the popup type to `horizontal` or `vertical`.
 
 ```lua
@@ -340,7 +406,7 @@ vim.g["codegpt_horizontal_popup_size"] = "20%"
 vim.g["codegpt_vertical_popup_size"] = "20%"
 ```
 
-### History configuration -> short-term memory
+### History (short-term memory) configuration
 
 `vim.g.codegpt_chat_history_timeout` - Defines the maximum idle time in seconds before a conversation's history is considered "stale" and is automatically reset.
 
@@ -374,6 +440,7 @@ vim.g.codegpt_ground_with_history = false
 Note that `"local_grounding"` requires `TAVILY_API_KEY` as an enviroment variable. Local Ollama model uses internet search results from [Tavily](https://app.tavily.com/home) to construct a grounded answer.
 
 ## Callback Types
+
 Callback types control what to do with the response
 
 | name      | Description |
@@ -384,6 +451,7 @@ Callback types control what to do with the response
 
 
 ## Template Variables
+
 | name      | Description |
 |--------------|----------|
 | language |  Programming language of the current buffer. |
@@ -421,7 +489,7 @@ vim.g["codegpt_commands"] = {
     -- Overrides the max tokens to be 1024
     max_tokens = 1024,
   },
-  ["code_edit"] = {
+  ["edit"] = {
     -- Overrides the system message template
     system_message_template = "You are {{language}} developer.",
 
@@ -441,7 +509,6 @@ vim.g["codegpt_commands"] = {
 }
 
 ```
-
 
 # Goals
 * Code related usages.

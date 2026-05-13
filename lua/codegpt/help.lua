@@ -6,8 +6,8 @@ local M = {}
 local command_descriptions = {
     chat = "General purpose chat assistant. Use this for general questions, brainstorming, or when no code is selected. It maintains conversation history.",
     search = "Triggers a web search (grounding) before answering to provide up-to-date information and reduce LLM hallucinations.",
-    completion = "Completes the current code selection. Useful for finishing a function or block of code based on the context provided by the selection.",
-    code_edit = "Modifies the selected code based on your instructions. Use this to refactor, change logic, or apply specific transformations to existing code.",
+    complete = "Completes the current code selection. Useful for finishing a function or block of code based on the context provided by the selection.",
+    edit = "Modifies the selected code based on your instructions. Use this to refactor, change logic, or apply specific transformations to existing code.",
     explain = "Provides a detailed explanation of the selected code. It breaks down the logic and explains it in simple terms, useful for understanding complex legacy code.",
     doc = "Generates documentation for the selected code. It produces function/method documentation (e.g., Javadoc, Doxygen) following best practices for the language.",
     tests = "Generates unit tests for the selected code. It attempts to use standard testing frameworks appropriate for the language (e.g., JUnit for Java, gtest for C++).",
@@ -44,7 +44,7 @@ function M.get_help_lines()
     table.insert(lines, "## Commands")
 
     local commnds_listed = {
-        "chat", "search", "completion", "code_edit", "explain", "doc", "tests",
+        "chat", "search", "complete", "edit", "explain", "doc", "tests",
         "opt", "debug", "question", "generate", "clear",
         "recall", "last", "rewind", "undo", "help"
     }

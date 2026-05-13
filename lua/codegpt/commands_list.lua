@@ -3,37 +3,13 @@ local Ui = require("codegpt.ui")
 
 local CommandsList = {}
 local cmd_default = {
-    temperature = 0.8,
+    temperature = 0.2,
     number_of_choices = 1,
     system_message_template = "You are a {{language}} coding assistant.",
     user_message_template = "",
     callback_type = "replace_lines",
     allow_empty_text_selection = false,
     extra_params = {}, -- extra parameters sent to the API
-}
-
-local provider_defaults = {
-    openai = {
-        model = "gpt-5.4-nano",
-        reasoning = { effort = "medium" },
-    },
-    ollama = {
-        model = "qwen3:8b",
-    },
-    anthropic = {
-        model = "claude-haiku-4-5-20251001",
-        max_tokens = 4096,
-    },
-    gemini = {
-        model = "gemini-2.5-flash",
-        -- model = "gemini-3-pro-preview",
-    },
-    groq = {
-        model = "qwen/qwen3-32b",
-    },
-    local_grounding = {
-        model = "qwen3:8b",
-    },
 }
 
 CommandsList.CallbackTypes = {
@@ -60,19 +36,40 @@ CommandsList.CallbackTypes = {
     ["custom"] = nil,
 }
 
-function CommandsList.get_cmd_opts(cmd)
+function CommandsList.get_cmd_opts(cmd, overrides)
     -- Start with hardcoded defaults for all commands
     local opts = vim.deepcopy(cmd_default)
 
-    -- Merge provider defaults
-    local provider_name = string.lower(vim.g.codegpt_api_provider or "openai")
+    local preset_suffix = (overrides and overrides.preset) and tostring(overrides.preset) or ""
+
+    -- Resolve Provider Name
+    local provider_name = (overrides and overrides.provider) 
+        or vim.g["codegpt_api_provider" .. preset_suffix]
+        or vim.g["codegpt_api_provider"] 
+        or "openai"
+    provider_name = string.lower(provider_name)
+
+    -- Merge provider defaults (which already include the user's plugin.lua overrides via config.lua)
+    local provider_defaults = vim.g["codegpt_provider_defaults"] or {}
     if provider_defaults[provider_name] then
         opts = vim.tbl_extend("force", opts, provider_defaults[provider_name])
     end
 
-    -- Merge the user's global defaults, if they exist
-    if vim.g["codegpt_global_commands_defaults"] ~= nil then
-        opts = vim.tbl_extend("force", opts, vim.g["codegpt_global_commands_defaults"])
+    -- Merge the user's generic global defaults (base or preset-specific)
+    -- We do NOT want the global 'model' to overwrite the provider-specific model we just loaded,
+    -- unless the user is intentionally overriding it for the generic default provider.
+    local global_defaults_key = "codegpt_global_commands_defaults" .. preset_suffix
+    if vim.g[global_defaults_key] ~= nil then
+        local global_defaults = vim.deepcopy(vim.g[global_defaults_key])
+        
+        -- If an explicit provider was requested (e.g., :Gemini), strip the generic global model
+        -- because we already applied the provider's specific model above.
+        if overrides and (overrides.provider or overrides.search_provider) then
+             global_defaults.model = nil
+             global_defaults.search_model = nil
+        end
+
+        opts = vim.tbl_extend("force", opts, global_defaults)
     end
 
     -- Get settings from default commands and user-defined commands
@@ -94,24 +91,31 @@ function CommandsList.get_cmd_opts(cmd)
 
     -- Handle decoupled search model logic
     if opts.is_search_command then
-        local search_provider = vim.g.codegpt_search_provider or "gemini"
+        local search_provider = (overrides and overrides.search_provider) 
+            or vim.g["codegpt_search_provider" .. preset_suffix]
+            or vim.g["codegpt_search_provider"]
+            or "gemini"
 
-        -- Get default search model for the selected search provider
-        local default_search_model
-        if search_provider == "gemini" then
-            default_search_model = "gemini-2.5-flash"
-        elseif search_provider == "anthropic" then
-            default_search_model = "claude-sonnet-4-6"
-        elseif search_provider == "openai" then
-            default_search_model = "gpt-5.5"
-        elseif search_provider == "local_grounding" then
-            default_search_model = "qwen3:8b"
+        -- Get default search model settings for this provider
+        local search_model_defaults = vim.g["codegpt_search_model_defaults"] or {}
+        local provider_search_settings = search_model_defaults[search_provider] or {}
+        local default_search_model = provider_search_settings.model
+
+        -- Safely fetch generic global search model
+        local global_search_model = vim.g["codegpt_search_model" .. preset_suffix] or vim.g.codegpt_search_model
+        
+        -- If an explicit provider was requested (e.g., :Gemini), strip the generic global search model
+        -- because we must use the provider's specific search model we just loaded.
+        if overrides and (overrides.provider or overrides.search_provider) then
+             global_search_model = nil
+             opts.search_model = nil
         end
+
         -- Resolution order:
-        -- 1. Global user setting (`vim.g.codegpt_search_model`)
+        -- 1. Global user setting (`global_search_model`)
         -- 2. Command-specific `search_model` override
-        -- 3. Provider default for search
-        opts.model = vim.g.codegpt_search_model or opts.search_model or default_search_model
+        -- 3. Provider specific default for search (`default_search_model`)
+        opts.model = global_search_model or opts.search_model or default_search_model
     end
 
     -- Model is configured?
@@ -134,9 +138,7 @@ function CommandsList.get_cmd_opts(cmd)
     else
         opts.callback = CommandsList.CallbackTypes[opts.callback_type]
     end
-    -- print("--- CodeGPT.vim Debug: Loaded model -> " .. opts.model .. " ---")
-    -- vim.notiry is less intrusive than print
-    vim.notify("LLM Model -> " .. opts.model, vim.log.levels.INFO, { title = "CodeGPT.vim" })
+    
     return opts
 end
 

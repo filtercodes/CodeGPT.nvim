@@ -7,7 +7,8 @@ local LocalGroundingProvider = require("codegpt.providers.local_grounding")
 
 Providers = {}
 
-function Providers.get_provider(provider_name)
+function Providers.get_provider(overrides)
+    local provider_name = (overrides and (overrides.search_provider or overrides.provider))
     local provider
     if provider_name then
         provider = vim.fn.tolower(provider_name)

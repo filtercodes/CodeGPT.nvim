@@ -36,6 +36,7 @@ function CodeGptModule.run_cmd(opts)
     -- Handle `clear` as a special case that doesn't need validation
     if command == "clear" and #opts.fargs == 1 then
         History.clear_history(bufnr)
+        require("codegpt.api").set_status("", "")
         vim.notify("Chat history cleared for this buffer.", vim.log.levels.INFO, { title = "CodeGPT" })
         return -- Stop all further processing
     end
@@ -86,10 +87,43 @@ function CodeGptModule.run_cmd(opts)
     end
 
     local cmd_opts = nil
+    local overrides = nil
+    
+    -- Command-to-Provider Mapping
+    local provider_map = {
+        Gemini = "gemini",
+        Claude = "anthropic",
+        Openai = "openai",
+        Ollama = "ollama",
+        Groq = "groq",
+    }
+
+    -- Detect Presets
+    local preset_idx = opts.name:match("Chat(%d)$")
+    if preset_idx then
+        overrides = { preset = tonumber(preset_idx) }
+    elseif provider_map[opts.name] then
+        overrides = { 
+            provider = provider_map[opts.name],
+            -- By default, if they use a provider command for search, use that provider's native search
+            search_provider = provider_map[opts.name]
+        }
+        -- Special case for Ollama + Search -> Local Grounding
+        if command == "search" and opts.name == "Ollama" then
+            overrides.search_provider = "local_grounding"
+        end
+    end
+
     -- If special commands were used with arguments, we want them to fall through to chat/code_edit guessing logic
     -- and prevent them from fetching default options.
     if not ((command == "clear" or is_recall or is_rewind) and #opts.fargs > 1) then
-        cmd_opts = CommandsList.get_cmd_opts(command)
+        cmd_opts = CommandsList.get_cmd_opts(command, overrides)
+    end
+
+    -- If the detected command doesn't support arguments but arguments were provided,
+    -- treat it as a general chat message instead.
+    if cmd_opts ~= nil and not has_command_args(cmd_opts) and #opts.fargs > 1 then
+        cmd_opts = nil
     end
 
     if cmd_opts ~= nil then
@@ -105,18 +139,8 @@ function CodeGptModule.run_cmd(opts)
         -- command_args is already the full input
         text_selection = "" -- Ignore any selection in the popup
     else
-        -- No explicit command, and we are in a normal buffer. Use original guessing logic
-        if command_args ~= "" then
-            if text_selection == "" then
-                command = "chat"
-            else
-                command = "code_edit"
-            end
-        elseif text_selection ~= "" then
-            command = "completion"
-        else
-            command = "chat" -- Default to chat
-        end
+        -- No explicit command, and we are in a normal buffer.
+        command = "chat" -- Default to chat
     end
 
     if command == nil or command == "" then
@@ -126,7 +150,7 @@ function CodeGptModule.run_cmd(opts)
         return
     end
 
-    Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts)
+    Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts, overrides)
 end
 
 return CodeGptModule

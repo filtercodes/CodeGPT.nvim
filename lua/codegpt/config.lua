@@ -8,8 +8,56 @@ end
 -- Alternative provider
 vim.g["codegpt_api_provider"] = vim.g["codegpt_api_provider"] or "openai"
 
+-- Default Models for Providers
+vim.g["codegpt_provider_defaults"] = vim.tbl_extend("force", {
+    openai = {
+        model = "gpt-5.4-nano",
+        reasoning = { effort = "medium" },
+    },
+    ollama = {
+        model = "qwen3:8b",
+    },
+    anthropic = {
+        model = "claude-haiku-4-5-20251001",
+        max_tokens = 4096,
+    },
+    gemini = {
+        model = "gemini-2.5-flash",
+    },
+    groq = {
+        model = "qwen/qwen3-32b",
+    },
+    local_grounding = {
+        model = "qwen3:8b",
+    },
+}, vim.g["codegpt_provider_defaults"] or {})
+
+-- Default Search Models per Provider
+vim.g["codegpt_search_model_defaults"] = vim.tbl_extend("force", {
+    gemini = { model = "gemini-2.5-flash" },
+    anthropic = { model = "claude-sonnet-4-6" },
+    openai = { model = "gpt-5.5" },
+    local_grounding = { model = "qwen3:8b" },
+}, vim.g["codegpt_search_model_defaults"] or {})
+
+-- Chat Presets
+for i = 1, 3 do
+    local provider_key = "codegpt_api_provider" .. i
+    local search_key = "codegpt_search_provider" .. i
+    local defaults_key = "codegpt_global_commands_defaults" .. i
+    
+    vim.g[provider_key] = vim.g[provider_key] or vim.g["codegpt_api_provider"]
+    vim.g[search_key] = vim.g[search_key] or "gemini"
+    vim.g[defaults_key] = vim.g[defaults_key] or nil
+end
+
 -- Clears visual selection after completion
 vim.g["codegpt_clear_visual_selection"] = true
+
+-- Print the model name in a notification before each request
+if vim.g["codegpt_print_model"] == nil then
+    vim.g["codegpt_print_model"] = true
+end
 
 -- Ensure user commands table exists
 vim.g["codegpt_commands"] = vim.g["codegpt_commands"] or {}
@@ -25,6 +73,8 @@ vim.g["codegpt_popup_border"] = { style = "rounded" }
 -- Wraps the text on the popup window, deprecated in favor of codegpt_popup_window_options
 vim.g["codegpt_wrap_popup_text"] = true
 
+-- Passes native Neovim window options (vim.wo) to the popup window.
+-- For example: { wrap = true, spell = false, cursorline = true, foldenable = false }
 vim.g["codegpt_popup_window_options"] = {}
 
 -- Set the filetype of a text popup is markdown
@@ -54,8 +104,9 @@ if vim.g["codegpt_chat_history_max_messages"] == nil then
     vim.g["codegpt_chat_history_max_messages"] = 20
 end
 
+-- Default Command Templates
 vim.g["codegpt_commands_defaults"] = {
-    ["completion"] = {
+    ["complete"] = {
         user_message_template =
         "I have the following {{language}} code snippet: ```{{filetype}}\n{{text_selection}}```\nComplete the rest. Use best practices and write really good documentation. {{language_instructions}} Only return the code snippet and nothing else.",
         language_instructions = {
@@ -70,7 +121,7 @@ vim.g["codegpt_commands_defaults"] = {
         },
         allow_empty_text_selection = true,
     },
-    ["code_edit"] = {
+    ["edit"] = {
         user_message_template =
         "I have the following {{language}} code: ```{{filetype}}\n{{text_selection}}```\n{{command_args}}. {{language_instructions}} Only return the code snippet and nothing else.",
         language_instructions = {
@@ -147,6 +198,7 @@ vim.g["codegpt_commands_defaults"] = {
     },
 }
 
+-- Search Options
 if vim.g["codegpt_show_search_sources"] == nil then
     vim.g["codegpt_show_search_sources"] = true
 end
@@ -161,4 +213,5 @@ vim.g["codegpt_ui_commands"] = {
     use_as_output = "<c-o>",
     use_as_input = "<c-i>",
 }
+
 vim.g["codegpt_ui_custom_commands"] = {}

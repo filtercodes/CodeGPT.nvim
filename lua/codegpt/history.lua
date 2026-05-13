@@ -21,6 +21,14 @@ function M.add_message(bufnr, role, content)
         history[bufnr] = {}
     end
 
+    -- Filter out <think> tags and their contents before saving to history
+    if role == "assistant" and content then
+        -- Remove everything from <think> to </think> inclusive
+        content = content:gsub("<think>.-</think>", "")
+        -- Trim leading and trailing whitespace/newlines
+        content = content:match("^%s*(.-)%s*$")
+    end
+
     local message = {
         role = role,
         content = content,

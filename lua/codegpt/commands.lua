@@ -6,9 +6,9 @@ local Utils = require("codegpt.utils")
 
 local Commands = {}
 
-function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts)
+function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts, overrides)
 	if cmd_opts == nil then
-		cmd_opts = CommandsList.get_cmd_opts(command)
+		cmd_opts = CommandsList.get_cmd_opts(command, overrides)
 	end
 
 	if cmd_opts == nil then
@@ -18,17 +18,26 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
 		return
 	end
 
+	Api.set_status(command, cmd_opts.model)
+
+	if vim.g.codegpt_print_model then
+		vim.notify("LLM Model - " .. cmd_opts.model, vim.log.levels.INFO, { title = "CodeGPT.vim" })
+	end
+
   -- If bufnr is not provided, default to the current buffer.
   -- This buffer is the "History Owner" for the conversation.
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
   local start_row, start_col, end_row, end_col = Utils.get_visual_selection()
 
-  local provider_name = nil
-  if cmd_opts.is_search_command then
-      provider_name = vim.g.codegpt_search_provider or "gemini"
+  -- Resolve Provider using overrides
+  local effective_overrides = overrides
+  if cmd_opts.is_search_command and not (effective_overrides and effective_overrides.search_provider) then
+      effective_overrides = vim.tbl_extend("force", effective_overrides or {}, {
+          search_provider = vim.g.codegpt_search_provider or "gemini"
+      })
   end
-  local provider = Providers.get_provider(provider_name)
+  local provider = Providers.get_provider(effective_overrides)
 
   local request, user_message_text = provider.make_request(command, cmd_opts, command_args, text_selection, bufnr)
 
