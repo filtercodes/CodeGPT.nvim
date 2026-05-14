@@ -36,7 +36,8 @@ function CodeGptModule.run_cmd(opts)
     -- Handle `clear` as a special case that doesn't need validation
     if command == "clear" and #opts.fargs == 1 then
         History.clear_history(bufnr)
-        require("codegpt.api").set_status("", "")
+        vim.b[bufnr].codegpt_metadata = nil
+        Ui.close_active_popup(current_bufnr)
         vim.notify("Chat history cleared for this buffer.", vim.log.levels.INFO, { title = "CodeGPT" })
         return -- Stop all further processing
     end
@@ -58,8 +59,10 @@ function CodeGptModule.run_cmd(opts)
     end
 
     if is_recall_action then
-        local last_response = History.get_last_response(bufnr, recall_offset)
+        local last_response, model, cmd = History.get_last_response(bufnr, recall_offset)
         if last_response then
+            -- Set metadata on current buffer so create_window can inherit it
+            vim.b[bufnr].codegpt_metadata = { model = model, command = cmd }
             local start_row, start_col, end_row, end_col = Utils.get_visual_selection()
             Ui.popup(Utils.parse_lines(last_response), vim.g.codegpt_text_popup_filetype, bufnr, start_row, start_col, end_row, end_col)
         else

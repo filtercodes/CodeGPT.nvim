@@ -16,9 +16,21 @@ local is_summarizing = {}
 ---@param bufnr number: The buffer number.
 ---@param role string: "user" or "assistant".
 ---@param content string: The message content.
-function M.add_message(bufnr, role, content)
+---@param model string|nil: Optional explicit model.
+---@param command string|nil: Optional explicit command.
+function M.add_message(bufnr, role, content, model, command)
     if not history[bufnr] then
         history[bufnr] = {}
+    end
+
+    -- If metadata isn't explicitly provided
+    -- try to retrieve it from the buffer-local source of truth.
+    if not model or not command then
+        local metadata = vim.b[bufnr] and vim.b[bufnr].codegpt_metadata
+        if metadata then
+            model = model or metadata.model
+            command = command or metadata.command
+        end
     end
 
     -- Filter out <think> tags and their contents before saving to history
@@ -33,6 +45,8 @@ function M.add_message(bufnr, role, content)
         role = role,
         content = content,
         timestamp = os.time(),
+        model = model,
+        command = command,
     }
     table.insert(history[bufnr], message)
 
@@ -115,11 +129,11 @@ end
 ---Retrieves a previous assistant response from the buffer's history.
 ---@param bufnr number: The buffer number.
 ---@param offset number|nil: 1-based index from the end (default 1).
----@return string|nil: The content of the assistant message, or nil if none found.
+---@return string|nil, string|nil, string|nil: content, model, command
 function M.get_last_response(bufnr, offset)
     local buf_history = history[bufnr]
     if not buf_history or #buf_history == 0 then
-        return nil
+        return nil, nil, nil
     end
     
     local target = offset or 1
@@ -130,11 +144,12 @@ function M.get_last_response(bufnr, offset)
         if buf_history[i].role == "assistant" then
             count = count + 1
             if count == target then
-                return buf_history[i].content
+                local msg = buf_history[i]
+                return msg.content, msg.model, msg.command
             end
         end
     end
-    return nil
+    return nil, nil, nil
 end
 
 ---Removes the last exchange (assistant response + user prompt) from the history.
@@ -168,7 +183,6 @@ function M.apply_summary(bufnr, summary_text)
     local msgs = history[bufnr]
     if not msgs or #msgs < 10 then return end
     
-    -- Inherit timestamp from the last message being summarized (the 10th one)
     -- This ensures the summary expires when that block would have expired.
     local tenth_msg = msgs[10]
     
@@ -176,7 +190,9 @@ function M.apply_summary(bufnr, summary_text)
         role = "system", -- System role implies context/instruction
         content = "Summary of previous conversation:\n" .. summary_text,
         timestamp = tenth_msg.timestamp,
-        is_summary = true
+        is_summary = true,
+        model = tenth_msg.model,
+        command = tenth_msg.command
     }
     
     -- Remove the first 10 messages

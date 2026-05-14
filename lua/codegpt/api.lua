@@ -7,15 +7,11 @@ CODEGPT_CALLBACK_COUNTER = 0
 local status_index = 0
 Api.progress_bar_dots = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 
-Api.last_model = ""
-Api.last_command = ""
-
-function Api.set_status(command, model)
-    Api.last_command = command
-    Api.last_model = model
-end
-
 function Api.get_status(...)
+    local Ui = require("codegpt.ui")
+    local bufnr = vim.api.nvim_get_current_buf()
+    local last_command, last_model = Ui.get_active_status_info(bufnr)
+
     local status = ""
     if CODEGPT_CALLBACK_COUNTER > 0 then
         status_index = status_index + 1
@@ -25,16 +21,17 @@ function Api.get_status(...)
         status = Api.progress_bar_dots[status_index]
     end
 
-    if Api.last_model ~= "" then
-        local model_info = string.format("%s  🤖 %s", Api.last_command, Api.last_model)
+    if last_model and last_model ~= "" then
+        local model_info = string.format("%s  🤖 %s", last_command, last_model)
         if status ~= "" then
             status = status .. " " .. model_info
         else
             status = model_info
         end
+        return status
     end
 
-    return status
+    return ""
 end
 
 function Api.run_started_hook()

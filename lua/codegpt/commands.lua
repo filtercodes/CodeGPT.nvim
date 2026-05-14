@@ -18,7 +18,11 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
 		return
 	end
 
-	Api.set_status(command, cmd_opts.model)
+    -- Tag the buffer with current metadata for status reporting and history
+    vim.b[bufnr or vim.api.nvim_get_current_buf()].codegpt_metadata = {
+        model = cmd_opts.model,
+        command = command
+    }
 
 	if vim.g.codegpt_print_model then
 		vim.notify("LLM Model - " .. cmd_opts.model, vim.log.levels.INFO, { title = "CodeGPT.vim" })

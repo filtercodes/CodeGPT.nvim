@@ -6,20 +6,61 @@ local Ui = {}
 
 local Api = require("codegpt.api")
 
--- This table will store the link between a temporary UI buffer and its
 -- "History Owner" buffer (e.g., { [popup_bufnr] = owner_bufnr }).
 local ui_to_owner_map = {}
+
+-- Track which popups are currently active
+local active_popups = {}
 
 local popup
 local split
 
 ---Looks up the owner buffer for a given UI buffer.
----@param bufnr number: The buffer number of the UI window.
----@return number | nil: The owner's buffer number or nil if not found.
 function Ui.get_owner_bufnr(bufnr)
     return ui_to_owner_map[bufnr]
 end
 
+---Retrieves metadata for the active popup associated with the given buffer.
+function Ui.get_active_status_info(bufnr)
+    local target_bufnr = bufnr
+
+    -- If the buffer is an owner, find its active popup
+    if not active_popups[bufnr] then
+        for p_buf, info in pairs(active_popups) do
+            if info.owner == bufnr then
+                target_bufnr = p_buf
+                break
+            end
+        end
+    end
+
+    -- Return metadata if the target buffer is an active popup
+    if active_popups[target_bufnr] then
+        local metadata = vim.b[target_bufnr] and vim.b[target_bufnr].codegpt_metadata
+        if metadata then
+            return metadata.command, metadata.model
+        end
+    end
+
+    return nil, nil
+end
+
+---Closes the active popup associated with the given buffer.
+function Ui.close_active_popup(bufnr)
+    -- If the buffer is itself a popup
+    if active_popups[bufnr] then
+        active_popups[bufnr].ui_elem:unmount()
+        return
+    end
+
+    -- If the buffer is an owner, find and close its popup
+    for _, info in pairs(active_popups) do
+        if info.owner == bufnr then
+            info.ui_elem:unmount()
+            break
+        end
+    end
+end
 
 
 local function create_horizontal()
@@ -93,13 +134,20 @@ function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_co
     -- Capture the buffer number in a local variable for the closure
     local ui_bufnr = ui_elem.bufnr
 
+    -- Tag the popup buffer with the same metadata as the owner
+    if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+        vim.b[ui_bufnr].codegpt_metadata = vim.b[bufnr].codegpt_metadata
+    end
+
     -- Register the link between the UI buffer and its owner
     ui_to_owner_map[ui_bufnr] = bufnr
+    active_popups[ui_bufnr] = { owner = bufnr, ui_elem = ui_elem }
 
     -- unmount component when cursor leaves buffer
     ui_elem:on(event.BufLeave, function()
         -- Deregister the link using the captured buffer number
         ui_to_owner_map[ui_bufnr] = nil
+        active_popups[ui_bufnr] = nil
         ui_elem:unmount()
     end)
 
