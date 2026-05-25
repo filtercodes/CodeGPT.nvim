@@ -1,8 +1,8 @@
-local CommandsList = require("codegpt.commands_list")
-local Providers = require("codegpt.providers")
-local Api = require("codegpt.api")
-local History = require("codegpt.history")
-local Utils = require("codegpt.utils")
+local CommandsList = require("quickllm.commands_list")
+local Providers = require("quickllm.providers")
+local Api = require("quickllm.api")
+local History = require("quickllm.history")
+local Utils = require("quickllm.utils")
 
 local Commands = {}
 
@@ -13,19 +13,19 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
 
 	if cmd_opts == nil then
 		vim.notify("Command not found: " .. command, vim.log.levels.ERROR, {
-			title = "CodeGPT.vim",
+			title = "QuickLLM",
 		})
 		return
 	end
 
     -- Tag the buffer with current metadata for status reporting and history
-    vim.b[bufnr or vim.api.nvim_get_current_buf()].codegpt_metadata = {
+    vim.b[bufnr or vim.api.nvim_get_current_buf()].quickllm_metadata = {
         model = cmd_opts.model,
         command = command
     }
 
-	if vim.g.codegpt_print_model then
-		vim.notify("LLM Model - " .. cmd_opts.model, vim.log.levels.INFO, { title = "CodeGPT.vim" })
+	if vim.g.quickllm_print_model then
+		vim.notify("LLM Model - " .. cmd_opts.model, vim.log.levels.INFO, { title = "QuickLLM" })
 	end
 
   -- If bufnr is not provided, default to the current buffer.
@@ -38,7 +38,7 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
   local effective_overrides = overrides
   if cmd_opts.is_search_command and not (effective_overrides and effective_overrides.search_provider) then
       effective_overrides = vim.tbl_extend("force", effective_overrides or {}, {
-          search_provider = vim.g.codegpt_search_provider or "gemini"
+          search_provider = vim.g.quickllm_search_provider or "gemini"
       })
   end
   local provider = Providers.get_provider(effective_overrides)
@@ -47,7 +47,7 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
 
   if provider.has_streaming then
       -- Initialize UI
-      local Ui = require("codegpt.ui")
+      local Ui = require("quickllm.ui")
       local ui_elem = Ui.create_window("markdown", bufnr, start_row, start_col, end_row, end_col)
       local ui_bufnr = ui_elem.bufnr
 
@@ -109,7 +109,7 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
                       History.add_message(bufnr, "assistant", full_text)
                   end
     
-                  if vim.g["codegpt_clear_visual_selection"] and vim.api.nvim_buf_is_valid(bufnr) then
+                  if vim.g["quickllm_clear_visual_selection"] and vim.api.nvim_buf_is_valid(bufnr) then
                       vim.api.nvim_buf_set_mark(bufnr, "<", 0, 0, {})
                       vim.api.nvim_buf_set_mark(bufnr, ">", 0, 0, {})
                   end

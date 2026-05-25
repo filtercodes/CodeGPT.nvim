@@ -4,7 +4,7 @@ local event = require("nui.utils.autocmd").event
 
 local Ui = {}
 
-local Api = require("codegpt.api")
+local Api = require("quickllm.api")
 
 -- "History Owner" buffer (e.g., { [popup_bufnr] = owner_bufnr }).
 local ui_to_owner_map = {}
@@ -36,7 +36,7 @@ function Ui.get_active_status_info(bufnr)
 
     -- Return metadata if the target buffer is an active popup
     if active_popups[target_bufnr] then
-        local metadata = vim.b[target_bufnr] and vim.b[target_bufnr].codegpt_metadata
+        local metadata = vim.b[target_bufnr] and vim.b[target_bufnr].quickllm_metadata
         if metadata then
             return metadata.command, metadata.model
         end
@@ -68,7 +68,7 @@ local function create_horizontal()
         split = Split({
             relative = "editor",
             position = "bottom",
-            size = vim.g["codegpt_horizontal_popup_size"],
+            size = vim.g["quickllm_horizontal_popup_size"],
         })
     end
 
@@ -80,7 +80,7 @@ local function create_vertical()
         split = Split({
             relative = "editor",
             position = "right",
-            size = vim.g["codegpt_vertical_popup_size"],
+            size = vim.g["quickllm_vertical_popup_size"],
         })
     end
 
@@ -89,20 +89,20 @@ end
 
 local function create_popup()
     if not popup then
-        local window_options = vim.g["codegpt_popup_window_options"]
+        local window_options = vim.g["quickllm_popup_window_options"]
         if window_options == nil then
             window_options = {}
         end
 
         -- check the old wrap config variable and use it if it's not set
         if window_options["wrap"] == nil then
-            window_options["wrap"] = vim.g["codegpt_wrap_popup_text"]
+            window_options["wrap"] = vim.g["quickllm_wrap_popup_text"]
         end
 
         popup = Popup({
             enter = true,
             focusable = true,
-            border = vim.g["codegpt_popup_border"],
+            border = vim.g["quickllm_popup_border"],
             position = "50%",
             size = {
                 width = "80%",
@@ -112,13 +112,13 @@ local function create_popup()
         })
     end
 
-    popup:update_layout(vim.g["codegpt_popup_options"])
+    popup:update_layout(vim.g["quickllm_popup_options"])
 
     return popup
 end
 
 function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_col)
-    local popup_type = vim.g["codegpt_popup_type"]
+    local popup_type = vim.g["quickllm_popup_type"]
     local ui_elem = nil
     if popup_type == "horizontal" then
         ui_elem = create_horizontal()
@@ -136,7 +136,7 @@ function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_co
 
     -- Tag the popup buffer with the same metadata as the owner
     if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
-        vim.b[ui_bufnr].codegpt_metadata = vim.b[bufnr].codegpt_metadata
+        vim.b[ui_bufnr].quickllm_metadata = vim.b[bufnr].quickllm_metadata
     end
 
     -- Register the link between the UI buffer and its owner
@@ -152,7 +152,7 @@ function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_co
     end)
 
     -- unmount component when key 'q'
-    ui_elem:map("n", vim.g["codegpt_ui_commands"].quit, function()
+    ui_elem:map("n", vim.g["quickllm_ui_commands"].quit, function()
         ui_elem:unmount()
     end, { noremap = true, silent = true })
 
@@ -160,7 +160,7 @@ function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_co
     vim.api.nvim_buf_set_option(ui_elem.bufnr, "filetype", filetype)
 
     -- replace lines when ctrl-o pressed
-    ui_elem:map("n", vim.g["codegpt_ui_commands"].use_as_output, function()
+    ui_elem:map("n", vim.g["quickllm_ui_commands"].use_as_output, function()
         local lines = vim.api.nvim_buf_get_lines(ui_elem.bufnr, 0, -1, false)
         vim.api.nvim_buf_set_text(bufnr, start_row, start_col, end_row, end_col, lines)
         ui_elem:unmount()
@@ -168,14 +168,14 @@ function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_co
 
     -- selecting all the content when ctrl-i is pressed
     -- so the user can proceed with another API request
-    ui_elem:map("n", vim.g["codegpt_ui_commands"].use_as_input, function()
+    ui_elem:map("n", vim.g["quickllm_ui_commands"].use_as_input, function()
         -- The new tracking system handles the history automatically.
         -- We just need to select the text and start the Chat command.
         vim.api.nvim_feedkeys("ggVG:Chat ", "n", false)
     end, { noremap = false })
 
     -- mapping custom commands
-    for _, command in ipairs(vim.g.codegpt_ui_custom_commands) do
+    for _, command in ipairs(vim.g.quickllm_ui_custom_commands) do
         ui_elem:map(command[1], command[2], command[3], command[4])
     end
 
@@ -188,7 +188,7 @@ function Ui.start_spinner(bufnr, loading_message)
     local idx = 1
     local timer = vim.loop.new_timer()
     local start_time = vim.loop.now()
-    local ns_id = vim.api.nvim_create_namespace("codegpt_spinner")
+    local ns_id = vim.api.nvim_create_namespace("quickllm_spinner")
     
     -- Initial set
     if vim.api.nvim_buf_is_valid(bufnr) then

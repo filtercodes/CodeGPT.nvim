@@ -1,8 +1,8 @@
 local curl = require("plenary.curl")
-local Render = require("codegpt.template_render")
-local Utils = require("codegpt.utils")
-local Api = require("codegpt.api")
-local History = require("codegpt.history")
+local Render = require("quickllm.template_render")
+local Utils = require("quickllm.utils")
+local Api = require("quickllm.api")
+local History = require("quickllm.history")
 
 AnthropicProvider = {}
 
@@ -16,7 +16,7 @@ function AnthropicProvider.make_request(command, cmd_opts, command_args, text_se
 
     local messages_for_api = {}
     local include_history = true
-    if cmd_opts.is_search_command and vim.g["codegpt_ground_with_history"] == false then
+    if cmd_opts.is_search_command and vim.g["quickllm_ground_with_history"] == false then
         include_history = false
     end
 
@@ -67,7 +67,7 @@ function AnthropicProvider.make_request(command, cmd_opts, command_args, text_se
 end
 
 function AnthropicProvider.make_headers(payload)
-    local api_key = vim.g["codegpt_anthropic_api_key"] or os.getenv("ANTHROPIC_API_KEY")
+    local api_key = vim.g["quickllm_anthropic_api_key"] or os.getenv("ANTHROPIC_API_KEY")
 
     if not api_key then
         error("Anthropic API Key not found.")
@@ -114,7 +114,7 @@ function AnthropicProvider.make_call(payload, user_message_text, cb, bufnr)
         local partial_data = ""
         local full_text = ""
         local collected_sources = {}
-        local Ui = require("codegpt.ui")
+        local Ui = require("quickllm.ui")
 
         curl.post(url, {
             body = payload_str,
@@ -140,7 +140,7 @@ function AnthropicProvider.make_call(payload, user_message_text, cb, bufnr)
                 
                 if not chunk then
                     vim.schedule(function()
-                        if #collected_sources > 0 and vim.g["codegpt_show_search_sources"] then
+                        if #collected_sources > 0 and vim.g["quickllm_show_search_sources"] then
                             local sources_text = "\n\n**Sources:**\n" .. table.concat(collected_sources, "\n")
                             cb.on_chunk(sources_text)
                         end

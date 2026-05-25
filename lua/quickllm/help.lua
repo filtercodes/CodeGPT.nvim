@@ -1,5 +1,5 @@
-local Utils = require("codegpt.utils")
-local Ui = require("codegpt.ui")
+local Utils = require("quickllm.utils")
+local Ui = require("quickllm.ui")
 
 local M = {}
 
@@ -25,7 +25,7 @@ local command_descriptions = {
 
 function M.get_help_lines()
     local lines = {
-        "# CodeGPT.nvim Help",
+        "# QuickLLM.nvim Help",
         "",
         "## Usage",
         "- `:Chat <prompt>`: Send a general prompt to the LLM.",
@@ -35,7 +35,7 @@ function M.get_help_lines()
         "## UI Keybindings",
     }
 
-    local ui_cmds = vim.g["codegpt_ui_commands"]
+    local ui_cmds = vim.g["quickllm_ui_commands"]
     table.insert(lines, "- `" .. ui_cmds.quit .. "`: Quit window")
     table.insert(lines, "- `" .. ui_cmds.use_as_output .. "`: Use as output (replace original selection with response)")
     table.insert(lines, "- `" .. ui_cmds.use_as_input .. "`: Use as input (select response and start new chat)")
@@ -54,7 +54,7 @@ function M.get_help_lines()
 
     for _, name in ipairs(commnds_listed) do
         -- Only add it if it actually exists in the defaults or descriptions
-        if command_descriptions[name] or (vim.g["codegpt_commands_defaults"] and vim.g["codegpt_commands_defaults"][name]) then
+        if command_descriptions[name] or (vim.g["quickllm_commands_defaults"] and vim.g["quickllm_commands_defaults"][name]) then
             table.insert(all_commands, name)
             seen[name] = true
         end
@@ -70,8 +70,8 @@ function M.get_help_lines()
         end
     end
 
-    collect_cmds(vim.g["codegpt_commands_defaults"])
-    collect_cmds(vim.g["codegpt_commands"])
+    collect_cmds(vim.g["quickllm_commands_defaults"])
+    collect_cmds(vim.g["quickllm_commands"])
 
     for _, name in ipairs(all_commands) do
         local desc = command_descriptions[name] or "Custom user command."
@@ -81,11 +81,11 @@ function M.get_help_lines()
     end
 
     table.insert(lines, "## Configuration")
-    table.insert(lines, "You can customize CodeGPT by setting global variables in your Neovim config (init.lua).")
+    table.insert(lines, "You can customize QuickLLM by setting global variables in your Neovim config (init.lua).")
     table.insert(lines, "")
     
     table.insert(lines, "### Provider Settings")
-    table.insert(lines, "`vim.g.codegpt_api_provider` (string)")
+    table.insert(lines, "`vim.g.quickllm_api_provider` (string)")
     table.insert(lines, "Sets the active LLM provider. Default: `'openai'`.")
     table.insert(lines, "Available options: `'openai'`, `'anthropic'`, `'gemini'`, `'ollama'`, `'groq'`.")
     table.insert(lines, "")
@@ -93,59 +93,59 @@ function M.get_help_lines()
     table.insert(lines, "### Model Configuration")
     table.insert(lines, "To change the model, you can set defaults per command or globally.")
     table.insert(lines, "")
-    table.insert(lines, "`vim.g.codegpt_global_commands_defaults` (table)")
+    table.insert(lines, "`vim.g.quickllm_global_commands_defaults` (table)")
     table.insert(lines, "Sets default parameters for ALL commands. Useful for forcing a specific model everywhere.")
-    table.insert(lines, "Example: `vim.g.codegpt_global_commands_defaults = { model = 'gpt-4o' }`")
+    table.insert(lines, "Example: `vim.g.quickllm_global_commands_defaults = { model = 'gpt-4o' }`")
     table.insert(lines, "")
-    table.insert(lines, "`vim.g.codegpt_commands` (table)")
+    table.insert(lines, "`vim.g.quickllm_commands` (table)")
     table.insert(lines, "Overrides specific commands. Useful for using different models for different tasks (e.g., a cheaper model for docs, a smarter one for coding).")
-    table.insert(lines, "Example: `vim.g.codegpt_commands = { doc = { model = 'gpt-3.5-turbo' } }`")
+    table.insert(lines, "Example: `vim.g.quickllm_commands = { doc = { model = 'gpt-3.5-turbo' } }`")
     table.insert(lines, "")
 
     table.insert(lines, "### Search (Grounding)")
     table.insert(lines, "To set the search model.")
     table.insert(lines, "")
-    table.insert(lines, "Example: `vim.g.codegpt_search_provider = anthropic`")
-    table.insert(lines, "`vim.g.codegpt_global_commands_defaults = { search_model = 'claude-sonnet-4-6' }`")
+    table.insert(lines, "Example: `vim.g.quickllm_search_provider = anthropic`")
+    table.insert(lines, "`vim.g.quickllm_global_commands_defaults = { search_model = 'claude-sonnet-4-6' }`")
     table.insert(lines, "Overrides default grounding model. Be aware that API specs might be different for older models")
     table.insert(lines, "")
 
     table.insert(lines, "### Chat History (Memory)")
-    table.insert(lines, "`vim.g.codegpt_chat_history_max_messages` (number)")
+    table.insert(lines, "`vim.g.quickllm_chat_history_max_messages` (number)")
     table.insert(lines, "Maximum number of messages to retain in the chat context window. Default: `20`.")
     table.insert(lines, "")
-    table.insert(lines, "`vim.g.codegpt_chat_history_timeout` (number)")
+    table.insert(lines, "`vim.g.quickllm_chat_history_timeout` (number)")
     table.insert(lines, "Time in seconds before the chat history expires and is cleared. Default: `900` (15 minutes).")
     table.insert(lines, "")
-    table.insert(lines, "`vim.g.codegpt_chat_history_time_based_expiry` (boolean)")
+    table.insert(lines, "`vim.g.quickllm_chat_history_time_based_expiry` (boolean)")
     table.insert(lines, "Whether to auto-clear history after the timeout. Default: `true`.")
     table.insert(lines, "")
 
     table.insert(lines, "### UI Customization")
-    table.insert(lines, "`vim.g.codegpt_popup_type` (string)")
+    table.insert(lines, "`vim.g.quickllm_popup_type` (string)")
     table.insert(lines, "Determines how the result window opens.")
     table.insert(lines, "Options:")
     table.insert(lines, "- `'popup'`: Centered floating window (default).")
     table.insert(lines, "- `'horizontal'`: Split window at the bottom.")
     table.insert(lines, "- `'vertical'`: Split window on the right.")
     table.insert(lines, "")
-    table.insert(lines, "`vim.g.codegpt_horizontal_popup_size` (string)")
+    table.insert(lines, "`vim.g.quickllm_horizontal_popup_size` (string)")
     table.insert(lines, "Height of the horizontal split. Default: `'20%'`.")
     table.insert(lines, "")
-    table.insert(lines, "`vim.g.codegpt_vertical_popup_size` (string)")
+    table.insert(lines, "`vim.g.quickllm_vertical_popup_size` (string)")
     table.insert(lines, "Width of the vertical split. Default: `'20%'`.")
     table.insert(lines, "")
-    table.insert(lines, "`vim.g.codegpt_popup_border` (table)")
+    table.insert(lines, "`vim.g.quickllm_popup_border` (table)")
     table.insert(lines, "Border style for the popup window. Default: `{ style = 'rounded' }`.")
     table.insert(lines, "")
-    table.insert(lines, "`vim.g.codegpt_text_popup_filetype` (string)")
+    table.insert(lines, "`vim.g.quickllm_text_popup_filetype` (string)")
     table.insert(lines, "Filetype for the result window (for syntax highlighting). Default: `'markdown'`.")
     table.insert(lines, "")
-    table.insert(lines, "`vim.g.codegpt_ui_commands` (table)")
-    table.insert(lines, "Customizes keybindings within the CodeGPT window.")
+    table.insert(lines, "`vim.g.quickllm_ui_commands` (table)")
+    table.insert(lines, "Customizes keybindings within the QuickLLM window.")
     table.insert(lines, "Default:")
     table.insert(lines, "```lua")
-    table.insert(lines, "vim.g.codegpt_ui_commands = {")
+    table.insert(lines, "vim.g.quickllm_ui_commands = {")
     table.insert(lines, "    quit = 'q',")
     table.insert(lines, "    use_as_output = '<c-o>',")
     table.insert(lines, "    use_as_input = '<c-i>'")
@@ -154,7 +154,7 @@ function M.get_help_lines()
     table.insert(lines, "")
     
     table.insert(lines, "### Miscellaneous")
-    table.insert(lines, "`vim.g.codegpt_clear_visual_selection` (boolean)")
+    table.insert(lines, "`vim.g.quickllm_clear_visual_selection` (boolean)")
     table.insert(lines, "Whether to clear the visual selection after a command runs. Default: `true`.")
 
     table.insert(lines, "")

@@ -2,18 +2,18 @@ local curl = require("plenary.curl")
 
 local Api = {}
 
-CODEGPT_CALLBACK_COUNTER = 0
+QUICKLLM_CALLBACK_COUNTER = 0
 
 local status_index = 0
 Api.progress_bar_dots = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 
 function Api.get_status(...)
-    local Ui = require("codegpt.ui")
+    local Ui = require("quickllm.ui")
     local bufnr = vim.api.nvim_get_current_buf()
     local last_command, last_model = Ui.get_active_status_info(bufnr)
 
     local status = ""
-    if CODEGPT_CALLBACK_COUNTER > 0 then
+    if QUICKLLM_CALLBACK_COUNTER > 0 then
         status_index = status_index + 1
         if status_index > #Api.progress_bar_dots then
             status_index = 1
@@ -35,18 +35,18 @@ function Api.get_status(...)
 end
 
 function Api.run_started_hook()
-    if vim.g["codegpt_hooks"]["request_started"] ~= nil then
-        vim.g["codegpt_hooks"]["request_started"]()
+    if vim.g["quickllm_hooks"]["request_started"] ~= nil then
+        vim.g["quickllm_hooks"]["request_started"]()
     end
 
-    CODEGPT_CALLBACK_COUNTER = CODEGPT_CALLBACK_COUNTER + 1
+    QUICKLLM_CALLBACK_COUNTER = QUICKLLM_CALLBACK_COUNTER + 1
 end
 
 function Api.run_finished_hook()
-    CODEGPT_CALLBACK_COUNTER = CODEGPT_CALLBACK_COUNTER - 1
-    if CODEGPT_CALLBACK_COUNTER <= 0 then
-        if vim.g["codegpt_hooks"]["request_finished"] ~= nil then
-            vim.g["codegpt_hooks"]["request_finished"]()
+    QUICKLLM_CALLBACK_COUNTER = QUICKLLM_CALLBACK_COUNTER - 1
+    if QUICKLLM_CALLBACK_COUNTER <= 0 then
+        if vim.g["quickllm_hooks"]["request_finished"] ~= nil then
+            vim.g["quickllm_hooks"]["request_finished"]()
         end
     end
 end

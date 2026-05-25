@@ -1,4 +1,4 @@
-local Utils = require("codegpt.utils")
+local Utils = require("quickllm.utils")
 
 local Render = {}
 

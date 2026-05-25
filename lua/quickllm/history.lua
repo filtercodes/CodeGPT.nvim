@@ -1,4 +1,4 @@
---/lua/codegpt/history.lua
+--/lua/quickllm/history.lua
 -- This module manages the chat history on a per-buffer basis.
 
 local M = {}
@@ -26,7 +26,7 @@ function M.add_message(bufnr, role, content, model, command)
     -- If metadata isn't explicitly provided
     -- try to retrieve it from the buffer-local source of truth.
     if not model or not command then
-        local metadata = vim.b[bufnr] and vim.b[bufnr].codegpt_metadata
+        local metadata = vim.b[bufnr] and vim.b[bufnr].quickllm_metadata
         if metadata then
             model = model or metadata.model
             command = command or metadata.command
@@ -50,7 +50,7 @@ function M.add_message(bufnr, role, content, model, command)
     }
     table.insert(history[bufnr], message)
 
-    local max_messages = vim.g.codegpt_chat_history_max_messages or 20
+    local max_messages = vim.g.quickllm_chat_history_max_messages or 20
 
     -- Check if we need to summarize
     if #history[bufnr] > max_messages then
@@ -77,12 +77,12 @@ function M.get_messages(bufnr)
     end
 
     local time_based_expiry = true
-    if vim.g.codegpt_chat_history_time_based_expiry ~= nil then
-        time_based_expiry = vim.g.codegpt_chat_history_time_based_expiry
+    if vim.g.quickllm_chat_history_time_based_expiry ~= nil then
+        time_based_expiry = vim.g.quickllm_chat_history_time_based_expiry
     end
 
     local current_time = os.time()
-    local timeout = vim.g.codegpt_chat_history_timeout or 900
+    local timeout = vim.g.quickllm_chat_history_timeout or 900
     
     local valid_history = {}
     local expired_count = 0
@@ -102,7 +102,7 @@ function M.get_messages(bufnr)
         bufnr_history = valid_history -- update local ref for return loop below
 
         if expired_count > 0 and #valid_history == 0 then
-             -- vim.notify("CodeGPT chat history cleared due to inactivity.", vim.log.levels.INFO, { title = "CodeGPT" })
+             -- vim.notify("QuickLLM chat history cleared due to inactivity.", vim.log.levels.INFO, { title = "QuickLLM" })
              return {}
         end
     end
@@ -203,7 +203,7 @@ function M.apply_summary(bufnr, summary_text)
     -- Insert summary at the beginning
     table.insert(msgs, 1, summary_msg)
     
-    -- vim.notify("CodeGPT: History summarized.", vim.log.levels.INFO, { title = "CodeGPT" })
+    -- vim.notify("QuickLLM: History summarized.", vim.log.levels.INFO, { title = "QuickLLM" })
 end
 
 ---Initiates background summarization of the first 10 messages.
@@ -212,8 +212,8 @@ function M.summarize_history(bufnr)
     is_summarizing[bufnr] = true
     
     -- Lazy require to avoid circular dependency
-    local Providers = require("codegpt.providers")
-    local CommandsList = require("codegpt.commands_list")
+    local Providers = require("quickllm.providers")
+    local CommandsList = require("quickllm.commands_list")
     
     local msgs = history[bufnr]
     if not msgs or #msgs < 10 then

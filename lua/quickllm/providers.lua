@@ -1,11 +1,11 @@
-local OpenAIProvider = require("codegpt.providers.openai")
-local AnthropicProvider = require("codegpt.providers.anthropic")
-local OllaMaProvider = require("codegpt.providers.ollama")
-local GroqProvider = require("codegpt.providers.groq")
-local GeminiProvider = require("codegpt.providers.gemini")
-local LocalGroundingProvider = require("codegpt.providers.local_grounding")
+local OpenAIProvider = require("quickllm.providers.openai")
+local AnthropicProvider = require("quickllm.providers.anthropic")
+local OllaMaProvider = require("quickllm.providers.ollama")
+local GroqProvider = require("quickllm.providers.groq")
+local GeminiProvider = require("quickllm.providers.gemini")
+local LocalGroundingProvider = require("quickllm.providers.local_grounding")
 
-Providers = {}
+local Providers = {}
 
 function Providers.get_provider(overrides)
     local provider_name = (overrides and (overrides.search_provider or overrides.provider))
@@ -13,7 +13,7 @@ function Providers.get_provider(overrides)
     if provider_name then
         provider = vim.fn.tolower(provider_name)
     else
-        provider = vim.fn.tolower(vim.g["codegpt_api_provider"] or "openai")
+        provider = vim.fn.tolower(vim.g["quickllm_api_provider"] or "openai")
     end
 
     if provider == "openai" then

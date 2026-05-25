@@ -1,5 +1,5 @@
-local Utils = require("codegpt.utils")
-local Ui = require("codegpt.ui")
+local Utils = require("quickllm.utils")
+local Ui = require("quickllm.ui")
 
 local CommandsList = {}
 local cmd_default = {
@@ -14,7 +14,7 @@ local cmd_default = {
 
 CommandsList.CallbackTypes = {
     ["text_popup"] = function(lines, bufnr, start_row, start_col, end_row, end_col)
-        local popup_filetype = vim.g["codegpt_text_popup_filetype"]
+        local popup_filetype = vim.g["quickllm_text_popup_filetype"]
         Ui.popup(lines, popup_filetype, bufnr, start_row, start_col, end_row, end_col)
     end,
     ["code_popup"] = function(lines, bufnr, start_row, start_col, end_row, end_col)
@@ -44,13 +44,13 @@ function CommandsList.get_cmd_opts(cmd, overrides)
 
     -- Resolve Provider Name
     local provider_name = (overrides and overrides.provider) 
-        or vim.g["codegpt_api_provider" .. preset_suffix]
-        or vim.g["codegpt_api_provider"] 
+        or vim.g["quickllm_api_provider" .. preset_suffix]
+        or vim.g["quickllm_api_provider"] 
         or "openai"
     provider_name = string.lower(provider_name)
 
     -- Merge provider defaults (which already include the user's plugin.lua overrides via config.lua)
-    local provider_defaults = vim.g["codegpt_provider_defaults"] or {}
+    local provider_defaults = vim.g["quickllm_provider_defaults"] or {}
     if provider_defaults[provider_name] then
         opts = vim.tbl_extend("force", opts, provider_defaults[provider_name])
     end
@@ -58,7 +58,7 @@ function CommandsList.get_cmd_opts(cmd, overrides)
     -- Merge the user's generic global defaults (base or preset-specific)
     -- We do NOT want the global 'model' to overwrite the provider-specific model we just loaded,
     -- unless the user is intentionally overriding it for the generic default provider.
-    local global_defaults_key = "codegpt_global_commands_defaults" .. preset_suffix
+    local global_defaults_key = "quickllm_global_commands_defaults" .. preset_suffix
     if vim.g[global_defaults_key] ~= nil then
         local global_defaults = vim.deepcopy(vim.g[global_defaults_key])
         
@@ -73,8 +73,8 @@ function CommandsList.get_cmd_opts(cmd, overrides)
     end
 
     -- Get settings from default commands and user-defined commands
-    local default_cmd_opts = vim.g["codegpt_commands_defaults"][cmd]
-    local user_cmd_opts = (vim.g["codegpt_commands"] or {})[cmd]
+    local default_cmd_opts = vim.g["quickllm_commands_defaults"][cmd]
+    local user_cmd_opts = (vim.g["quickllm_commands"] or {})[cmd]
 
     -- A command must exist in one of the tables
     if default_cmd_opts == nil and user_cmd_opts == nil then
@@ -92,17 +92,17 @@ function CommandsList.get_cmd_opts(cmd, overrides)
     -- Handle decoupled search model logic
     if opts.is_search_command then
         local search_provider = (overrides and overrides.search_provider) 
-            or vim.g["codegpt_search_provider" .. preset_suffix]
-            or vim.g["codegpt_search_provider"]
+            or vim.g["quickllm_search_provider" .. preset_suffix]
+            or vim.g["quickllm_search_provider"]
             or "gemini"
 
         -- Get default search model settings for this provider
-        local search_model_defaults = vim.g["codegpt_search_model_defaults"] or {}
+        local search_model_defaults = vim.g["quickllm_search_model_defaults"] or {}
         local provider_search_settings = search_model_defaults[search_provider] or {}
         local default_search_model = provider_search_settings.model
 
         -- Safely fetch generic global search model
-        local global_search_model = vim.g["codegpt_search_model" .. preset_suffix] or vim.g.codegpt_search_model
+        local global_search_model = vim.g["quickllm_search_model" .. preset_suffix] or vim.g.quickllm_search_model
         
         -- If an explicit provider was requested (e.g., :Gemini), strip the generic global search model
         -- because we must use the provider's specific search model we just loaded.
@@ -121,9 +121,9 @@ function CommandsList.get_cmd_opts(cmd, overrides)
     -- Model is configured?
     if opts.model == nil or opts.model == "" then
         vim.notify(
-            "CodeGPT.vim: Model not configured for command '"
+            "QuickLLM.vim: Model not configured for command '"
                 .. cmd
-                .. "'. Please set it in vim.g.codegpt_commands or vim.g.codegpt_global_commands_defaults",
+                .. "'. Please set it in vim.g.quickllm_commands or vim.g.quickllm_global_commands_defaults",
             vim.log.levels.ERROR
         )
         return nil

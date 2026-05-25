@@ -1,8 +1,8 @@
 local curl = require("plenary.curl")
-local Render = require("codegpt.template_render")
-local Utils = require("codegpt.utils")
-local Api = require("codegpt.api")
-local History = require("codegpt.history")
+local Render = require("quickllm.template_render")
+local Utils = require("quickllm.utils")
+local Api = require("quickllm.api")
+local History = require("quickllm.history")
 
 OpenAIProvider = {}
 
@@ -18,7 +18,7 @@ function OpenAIProvider.make_request(command, cmd_opts, command_args, text_selec
     end
 
     local include_history = true
-    if cmd_opts.is_search_command and vim.g["codegpt_ground_with_history"] == false then
+    if cmd_opts.is_search_command and vim.g["quickllm_ground_with_history"] == false then
         include_history = false
     end
 
@@ -76,10 +76,10 @@ local function curl_callback(response, user_message_text, cb, bufnr)
 end
 
 function OpenAIProvider.make_headers()
-    local token = vim.g["codegpt_openai_api_key"] or os.getenv("OPENAI_API_KEY")
+    local token = vim.g["quickllm_openai_api_key"] or os.getenv("OPENAI_API_KEY")
     if not token then
         error(
-            "OpenAIApi Key not found, set in vim with 'codegpt_openai_api_key' or as the env variable 'OPENAI_API_KEY'"
+            "OpenAIApi Key not found, set in vim with 'quickllm_openai_api_key' or as the env variable 'OPENAI_API_KEY'"
         )
     end
 
@@ -115,14 +115,14 @@ function OpenAIProvider.handle_response(json, user_message_text, cb, bufnr)
             end
         end
 
-        if #sources > 0 and vim.g["codegpt_show_search_sources"] then
+        if #sources > 0 and vim.g["quickllm_show_search_sources"] then
             response_text = response_text .. "\n\n**Sources:**\n" .. table.concat(sources, "\n")
         end
 
         if response_text ~= "" then
             History.add_message(bufnr, "user", user_message_text)
             History.add_message(bufnr, "assistant", response_text)
-            if vim.g["codegpt_clear_visual_selection"] and vim.api.nvim_buf_is_valid(bufnr) then
+            if vim.g["quickllm_clear_visual_selection"] and vim.api.nvim_buf_is_valid(bufnr) then
                 vim.api.nvim_buf_set_mark(bufnr, "<", 0, 0, {})
                 vim.api.nvim_buf_set_mark(bufnr, ">", 0, 0, {})
             end
@@ -140,7 +140,7 @@ function OpenAIProvider.handle_response(json, user_message_text, cb, bufnr)
                 History.add_message(bufnr, "user", user_message_text)
                 History.add_message(bufnr, "assistant", response_text)
 
-                if vim.g["codegpt_clear_visual_selection"] and vim.api.nvim_buf_is_valid(bufnr) then
+                if vim.g["quickllm_clear_visual_selection"] and vim.api.nvim_buf_is_valid(bufnr) then
                     vim.api.nvim_buf_set_mark(bufnr, "<", 0, 0, {})
                     vim.api.nvim_buf_set_mark(bufnr, ">", 0, 0, {})
                 end
@@ -155,9 +155,9 @@ function OpenAIProvider.handle_response(json, user_message_text, cb, bufnr)
 end
 
 function OpenAIProvider.make_call(payload, user_message_text, cb, bufnr)
-    local url = vim.g["codegpt_chat_completions_url"]
+    local url = vim.g["quickllm_chat_completions_url"]
     if payload.tools and payload.tools[1] and payload.tools[1].type == "web_search" then
-        url = vim.g["codegpt_openai_responses_url"] or "https://api.openai.com/v1/responses"
+        url = vim.g["quickllm_openai_responses_url"] or "https://api.openai.com/v1/responses"
     end
     local headers = OpenAIProvider.make_headers()
 
@@ -252,7 +252,7 @@ function OpenAIProvider.make_call(payload, user_message_text, cb, bufnr)
                                     end
                                 end
                             end
-                            if #sources > 0 and vim.g["codegpt_show_search_sources"] then
+                            if #sources > 0 and vim.g["quickllm_show_search_sources"] then
                                 local sources_text = "\n\n**Sources:**\n" .. table.concat(sources, "\n")
                                 full_text = full_text .. sources_text
                                 cb.on_chunk(sources_text)
