@@ -67,15 +67,15 @@ vim.g.quickllm_hooks = {
     request_finished = nil,
 }
 
--- Border style to use for the popup
-vim.g.quickllm_popup_border = { style = "rounded" }
-
--- Wraps the text on the popup window, deprecated in favor of quickllm_popup_window_options
-vim.g.quickllm_wrap_popup_text = true
+-- Style to use for the popup border (e.g. "rounded", "single", "double", "solid", "shadow")
+vim.g.quickllm_popup_style = "rounded"
 
 -- Passes native Neovim window options (vim.wo) to the popup window.
 -- For example: { wrap = true, spell = false, cursorline = true, foldenable = false }
-vim.g.quickllm_popup_window_options = {}
+vim.g.quickllm_popup_window_options = {
+    wrap = true,
+    linebreak = true,
+}
 
 -- Set the filetype of a text popup is markdown
 vim.g.quickllm_text_popup_filetype = "markdown"
@@ -83,11 +83,21 @@ vim.g.quickllm_text_popup_filetype = "markdown"
 -- Set the type of ui to use for the popup, options are "popup", "vertical" or "horizontal"
 vim.g.quickllm_popup_type = "popup"
 
+-- Set the layout of the popup window
+vim.g.quickllm_popup_layout = {
+  relative = "editor",
+  position = "50%",
+  size = {
+    width = "80%",
+    height = "60%"
+  }
+}
+
 -- Set the height of the horizontal popup
-vim.g.quickllm_horizontal_popup_size = "20%"
+vim.g.quickllm_horizontal_popup_size = "40%"
 
 -- Set the width of the vertical popup
-vim.g.quickllm_vertical_popup_size = "20%"
+vim.g.quickllm_vertical_popup_size = "50%"
 
 -- Set timeout for chat history
 if vim.g.quickllm_chat_history_timeout == nil then
@@ -213,5 +223,10 @@ vim.g.quickllm_ui_commands = {
     use_as_output = "<c-o>",
     use_as_input = "<c-i>",
 }
+
+-- Additional way to quit popup with double escape (within 500ms)
+if vim.g.quickllm_quit_with_double_esc == nil then
+    vim.g.quickllm_quit_with_double_esc = true
+end
 
 vim.g.quickllm_ui_custom_commands = {}

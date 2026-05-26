@@ -45,9 +45,12 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
 
   local request, user_message_text = provider.make_request(command, cmd_opts, command_args, text_selection, bufnr)
 
-  if provider.has_streaming then
+  local use_streaming = provider.has_streaming and cmd_opts.callback_type ~= "replace_lines"
+
+  if use_streaming then
       -- Initialize UI
       local Ui = require("quickllm.ui")
+
       local ui_elem = Ui.create_window("markdown", bufnr, start_row, start_col, end_row, end_col)
       local ui_bufnr = ui_elem.bufnr
 

@@ -10,10 +10,19 @@ Api.progress_bar_dots = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"
 function Api.get_status(...)
     local Ui = require("quickllm.ui")
     local bufnr = vim.api.nvim_get_current_buf()
+
+    -- If we are in a UI window (split or popup), don't show the status here.
+    if Ui.get_owner_bufnr(bufnr) then
+        return ""
+    end
+
     local last_command, last_model = Ui.get_active_status_info(bufnr)
 
+    local is_running = QUICKLLM_CALLBACK_COUNTER > 0
+    local has_popup = Ui.has_active_popup(bufnr)
+
     local status = ""
-    if QUICKLLM_CALLBACK_COUNTER > 0 then
+    if is_running then
         status_index = status_index + 1
         if status_index > #Api.progress_bar_dots then
             status_index = 1
@@ -21,7 +30,8 @@ function Api.get_status(...)
         status = Api.progress_bar_dots[status_index]
     end
 
-    if last_model and last_model ~= "" then
+    -- We only show the info if a request is active OR if the user is looking at a popup
+    if last_model and last_model ~= "" and (is_running or has_popup) then
         local model_info = string.format("%s  🤖 %s", last_command, last_model)
         if status ~= "" then
             status = status .. " " .. model_info

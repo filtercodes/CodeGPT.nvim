@@ -1,18 +1,18 @@
 # QuickLLM.nvim
 
-QuickLLM is just a quick way to access LLM - directly from your terminal through the Neovim editor. Simply run `command + prompt` and the response will open in a popup window. It also includes additional commands for code completion, refactoring, generating documentation, and more — with a strong focus on coding workflows.
+QuickLLM is a quick way to access LLM - directly from your terminal through the Neovim editor. Simply run `command + prompt` and the response will open in a popup window. It also includes additional commands for code completion, refactoring, generating documentation, and more — with a strong focus on coding workflows.
 
 ## Installation
 
 * Set environment variable for your prefered API key e.g. `ANTHROPIC_API_KEY` [Claude API key](https://platform.claude.com/settings/workspaces/default/keys).
 * The plugins 'plenary' and 'nui' are also required.
 
-Installing with packer.
+Installing with [lazy.nvim](https://github.com/folke/lazy.nvim).
 
 ```lua
-use({
+{
    "filtercodes/QuickLLM.nvim",
-   requires = {
+   dependencies = {
       "MunifTanjim/nui.nvim",
       "nvim-lua/plenary.nvim",
    },
@@ -24,10 +24,10 @@ use({
       }
       -- Add other commands (explained further in this readme file)
    end
-})
+}
 ```
 
-Installing with vim-plug.
+Installing with [vim-plug](https://github.com/junegunn/vim-plug).
 
 ```vim
 " Install plugins
@@ -88,17 +88,17 @@ There are also configurable presets: `:Chat1`, `:Chat2`, and `:Chat3`. To quickl
 | command      | input | Description |
 |--------------|---- |------------------------------------|
 | chat  |  prompt | Will pass the given prompt to LLM and return the response in a popup. |
-| search |  prompt (optional text selection) | Will trigger a web search (grounding) before answering to provide up-to-date information and reduce LLM hallucinations. |
-| complete |  text selection | Will ask LLM to complete the selected code. |
-| edit  |  text selection + prompt | Will ask LLM to apply the given instructions to the selected code. |
-| explain  |  text selection | Will ask LLM to explain the selected code. |
-| question  |  text selection + prompt | Will pass the question to LLM and return the answer in a text popup. |
-| debug  |  text selection | Will pass the code selectiont to LLM analyze it for bugs, the results will be in a text popup. |
-| doc  |  text selection | Will ask LLM to document the selected code. |
-| opt  |  text selection | Will ask LLM to optimize the selected code. |
-| tests  |  text selection | Will ask LLM to write unit tests for the selected code. |
-| recall / last | none or number | This command will display the last assistant response from the chat history in a new popup without altering the history. Optionally accept a number to go further back (e.g., `:Chat recall 2`). |
-| rewind / undo | none | This command will remove the last exchange (your prompt and the assistant's response) from the chat history. Useful for reverting a bad conversation turn. |
+| search |  prompt (optional text selection) | Will trigger a web search (grounding) before answering to provide up-to-date information and reduce LLM hallucinations. Will show the grounded answer in the popup. |
+| complete |  text selection | Will ask LLM to complete the selected code directly in the editor. |
+| edit  |  text selection + prompt | Will ask LLM to apply the given instructions to the selected code in the editor. |
+| explain  |  text selection | Will ask LLM to explain the selected code and return the answer in a text popup. |
+| question  |  text selection + prompt | Will pass the question to LLM and return the answer in a popup. |
+| debug  |  text selection | Will pass the code selectiont to LLM analyze it for bugs, the results will be in a popup. |
+| doc  |  text selection | Will ask LLM to document the selected code. Will update the text directly in the editor. |
+| opt  |  text selection | Will ask LLM to optimize the selected code. Will update the code directly in the editor. |
+| tests  |  text selection | Will ask LLM to write unit tests for the selected code in the popup window. |
+| recall / last | none or number | Will display the last assistant response from the chat history in a popup without altering the history. Optionally accept a number to go further back (e.g., `:Chat recall 2`). |
+| rewind / undo | none | Will remove the last exchange (your prompt and the assistant's response) from the chat history. Useful for reverting a bad conversation turn. |
 | clear | none | Will delete complete chat short-term memory to start blank. |
 | help | none | Displays the help guide. |
 
@@ -126,6 +126,8 @@ A full list of overrides
 | callback_type           | "replace_lines" | Controls what the plugin does with the response                                                                                                                   |
 | language_instructions   | {}              | A table of filetype => instructions. The current buffer's filetype is used in this lookup. This is useful trigger different instructions for different languages. |
 | extra_params            | {}              | A table of custom parameters to be sent to the API.                                                                                                               |
+| allow_empty_text_selection | false        | If true, the command can be run without a visual selection.                                                                                                       |
+| loading_message         | "Generating..." | The message displayed in the spinner while waiting for a response.                                                                                                |
 
 
 ### Configuring Providers and Models
@@ -168,6 +170,34 @@ vim.g.quickllm_global_commands_defaults1 = {
 }
 ```
 
+### Configuration Merging Logic
+
+The system uses a "Waterfall" merging logic to determine the final settings (like model, temperature, or system prompt) for any given request. Settings are applied in the following order:
+
+1. **Hardcoded Defaults**: Base values (lowest priority).
+2. **Provider Defaults**: Values defined in `vim.g.quickllm_provider_defaults` (e.g., your model and system prompt for Ollama).
+3. **Global Overrides**: Values defined in `vim.g.quickllm_global_commands_defaults`.
+4. **Command-Specific Overrides**: Values defined in `vim.g.quickllm_commands` (highest priority).
+
+
+### Optimizing Local Models (Ollama)
+
+To get that "Quick" local models execution speed via Ollama, you may want to set an empty system prompt for better prompt caching. If you configured a custom one in your `Modelfile`, then be sure to disable it globally in the Ollama provider settings:
+
+```lua
+vim.g.quickllm_provider_defaults = {
+  ollama = {
+    system_message_template = ""
+  }
+}
+
+-- Also clear for the search command specifically
+vim.g.quickllm_commands = {
+  search = {
+    system_message_template = ""
+  }
+}
+```
 
 #### Templates
 
@@ -304,7 +334,7 @@ vim.g.quickllm_print_model = false
 
 #### Popup commands
 
-The default filetype of the text popup window is markdown. You can change this by setting the `quickllm_popup_options` variable.
+The default filetype of the text popup window is markdown. You can change this by setting the `quickllm_text_popup_filetype` variable.
 
 ```lua
 vim.g.quickllm_text_popup_filetype = "markdown"
@@ -336,7 +366,7 @@ vim.g.quickllm_ui_commands = {
 #### Popup layouts
 
 ```lua
-vim.g.quickllm_popup_options = {
+vim.g.quickllm_popup_layout = {
   -- a table as defined by nui.nvim https://github.com/MunifTanjim/nui.nvim/tree/main/lua/nui/popup#popupupdate_layout
   relative = "editor",
   position = "50%",
@@ -347,13 +377,10 @@ vim.g.quickllm_popup_options = {
 }
 ```
 
-#### Popup border
+#### Popup border style
 
 ```lua
-vim.g.quickllm_popup_border = {
-  -- a table as defined by nui.nvim https://github.com/MunifTanjim/nui.nvim/tree/main/lua/nui/popup#border
-  style = "rounded"
-}
+vim.g.quickllm_popup_style = "rounded"
 ```
 #### Popup window options
 
@@ -390,7 +417,7 @@ vim.g.quickllm_commands = {
 }
 ```
 
-### Horizontal or vertical split window
+#### Horizontal or vertical split window
 
 If you prefer a horizontal or vertical split window, you can change the popup type to `horizontal` or `vertical`.
 
@@ -399,7 +426,7 @@ If you prefer a horizontal or vertical split window, you can change the popup ty
 vim.g.quickllm_popup_type = "horizontal"
 ```
 
-To set the height of the horizontal window or the width of the vertical popup, you can use `quickllm_horizontal_popup_size` and `quickllm_horizontal_popup_size` variables.
+To set the height of the horizontal window or the width of the vertical popup, you can use `quickllm_horizontal_popup_size` and `quickllm_vertical_popup_size` variables.
 
 ```lua
 vim.g.quickllm_horizontal_popup_size = "20%"
