@@ -82,7 +82,7 @@ function Utils.trim_to_code_block(lines)
 end
 
 function Utils.parse_lines(response_text)
-    if vim.g["quickllm_write_response_to_err_log"] then
+    if vim.g.quickllm_write_response_to_err_log then
         vim.api.nvim_err_write("Response: \n" .. response_text .. "\n")
     end
 

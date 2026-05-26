@@ -35,8 +35,8 @@ function Api.get_status(...)
 end
 
 function Api.run_started_hook()
-    if vim.g["quickllm_hooks"]["request_started"] ~= nil then
-        vim.g["quickllm_hooks"]["request_started"]()
+    if vim.g.quickllm_hooks["request_started"] ~= nil then
+        vim.g.quickllm_hooks["request_started"]()
     end
 
     QUICKLLM_CALLBACK_COUNTER = QUICKLLM_CALLBACK_COUNTER + 1
@@ -45,8 +45,8 @@ end
 function Api.run_finished_hook()
     QUICKLLM_CALLBACK_COUNTER = QUICKLLM_CALLBACK_COUNTER - 1
     if QUICKLLM_CALLBACK_COUNTER <= 0 then
-        if vim.g["quickllm_hooks"]["request_finished"] ~= nil then
-            vim.g["quickllm_hooks"]["request_finished"]()
+        if vim.g.quickllm_hooks["request_finished"] ~= nil then
+            vim.g.quickllm_hooks["request_finished"]()
         end
     end
 end

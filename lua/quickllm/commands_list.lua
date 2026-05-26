@@ -14,7 +14,7 @@ local cmd_default = {
 
 CommandsList.CallbackTypes = {
     ["text_popup"] = function(lines, bufnr, start_row, start_col, end_row, end_col)
-        local popup_filetype = vim.g["quickllm_text_popup_filetype"]
+        local popup_filetype = vim.g.quickllm_text_popup_filetype
         Ui.popup(lines, popup_filetype, bufnr, start_row, start_col, end_row, end_col)
     end,
     ["code_popup"] = function(lines, bufnr, start_row, start_col, end_row, end_col)
@@ -45,12 +45,12 @@ function CommandsList.get_cmd_opts(cmd, overrides)
     -- Resolve Provider Name
     local provider_name = (overrides and overrides.provider) 
         or vim.g["quickllm_api_provider" .. preset_suffix]
-        or vim.g["quickllm_api_provider"] 
+        or vim.g.quickllm_api_provider 
         or "openai"
     provider_name = string.lower(provider_name)
 
     -- Merge provider defaults (which already include the user's plugin.lua overrides via config.lua)
-    local provider_defaults = vim.g["quickllm_provider_defaults"] or {}
+    local provider_defaults = vim.g.quickllm_provider_defaults or {}
     if provider_defaults[provider_name] then
         opts = vim.tbl_extend("force", opts, provider_defaults[provider_name])
     end
@@ -73,8 +73,8 @@ function CommandsList.get_cmd_opts(cmd, overrides)
     end
 
     -- Get settings from default commands and user-defined commands
-    local default_cmd_opts = vim.g["quickllm_commands_defaults"][cmd]
-    local user_cmd_opts = (vim.g["quickllm_commands"] or {})[cmd]
+    local default_cmd_opts = vim.g.quickllm_commands_defaults[cmd]
+    local user_cmd_opts = (vim.g.quickllm_commands or {})[cmd]
 
     -- A command must exist in one of the tables
     if default_cmd_opts == nil and user_cmd_opts == nil then
@@ -93,11 +93,11 @@ function CommandsList.get_cmd_opts(cmd, overrides)
     if opts.is_search_command then
         local search_provider = (overrides and overrides.search_provider) 
             or vim.g["quickllm_search_provider" .. preset_suffix]
-            or vim.g["quickllm_search_provider"]
+            or vim.g.quickllm_search_provider
             or "gemini"
 
         -- Get default search model settings for this provider
-        local search_model_defaults = vim.g["quickllm_search_model_defaults"] or {}
+        local search_model_defaults = vim.g.quickllm_search_model_defaults or {}
         local provider_search_settings = search_model_defaults[search_provider] or {}
         local default_search_model = provider_search_settings.model
 

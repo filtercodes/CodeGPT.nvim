@@ -10,10 +10,10 @@ local function create_command(name)
         nargs = "*",
         complete = function()
             local cmd = {}
-            for k in pairs(vim.g["quickllm_commands_defaults"]) do
+            for k in pairs(vim.g.quickllm_commands_defaults) do
                 table.insert(cmd, k)
             end
-            for k in pairs(vim.g["quickllm_commands"] or {}) do
+            for k in pairs(vim.g.quickllm_commands or {}) do
                 table.insert(cmd, k)
             end
             return cmd

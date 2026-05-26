@@ -13,7 +13,7 @@ function Providers.get_provider(overrides)
     if provider_name then
         provider = vim.fn.tolower(provider_name)
     else
-        provider = vim.fn.tolower(vim.g["quickllm_api_provider"] or "openai")
+        provider = vim.fn.tolower(vim.g.quickllm_api_provider or "openai")
     end
 
     if provider == "openai" then

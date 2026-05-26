@@ -26,7 +26,7 @@ function LocalGroundingProvider.make_request(command, cmd_opts, command_args, te
 end
 
 local function call_tavily(query, cb)
-    local api_key = vim.g["quickllm_tavily_api_key"] or os.getenv("TAVILY_API_KEY")
+    local api_key = vim.g.quickllm_tavily_api_key or os.getenv("TAVILY_API_KEY")
     if not api_key then
         error("Tavily API Key not found. Set 'quickllm_tavily_api_key' or TAVILY_API_KEY environment variable.")
     end
@@ -107,7 +107,7 @@ function LocalGroundingProvider.make_call(payload, user_message_text, cb, bufnr)
         local past_messages = History.get_messages(bufnr)
         local messages = {}
         
-        if vim.g["quickllm_ground_with_history"] ~= false then
+        if vim.g.quickllm_ground_with_history ~= false then
             for _, msg in ipairs(past_messages) do
                 table.insert(messages, msg)
             end
@@ -122,7 +122,7 @@ function LocalGroundingProvider.make_call(payload, user_message_text, cb, bufnr)
         ollama_payload.stream = (type(cb) == "table")
 
         -- Call Ollama
-        local ollama_url = vim.g["quickllm_ollama_url"] or "http://127.0.0.1:11434/api/chat"
+        local ollama_url = vim.g.quickllm_ollama_url or "http://127.0.0.1:11434/api/chat"
         local ollama_headers = { ["Content-Type"] = "application/json" }
 
         if type(cb) == "table" then
@@ -152,7 +152,7 @@ function LocalGroundingProvider.make_call(payload, user_message_text, cb, bufnr)
                                 end
                             end
 
-                            if #sources > 0 and vim.g["quickllm_show_search_sources"] then
+                            if #sources > 0 and vim.g.quickllm_show_search_sources then
                                 local sources_text = "\n\n**Sources:**\n" .. table.concat(sources, "\n")
                                 cb.on_chunk(sources_text)
                             end
@@ -218,7 +218,7 @@ function LocalGroundingProvider.make_call(payload, user_message_text, cb, bufnr)
                         local ok, json = pcall(vim.fn.json_decode, response.body)
                         if ok and json and json.message and json.message.content then
                             local response_text = json.message.content
-                            if #sources > 0 and vim.g["quickllm_show_search_sources"] then
+                            if #sources > 0 and vim.g.quickllm_show_search_sources then
                                 response_text = response_text .. "\n\n**Sources:**\n" .. table.concat(sources, "\n")
                             end
                             History.add_message(bufnr, "user", user_message_text)

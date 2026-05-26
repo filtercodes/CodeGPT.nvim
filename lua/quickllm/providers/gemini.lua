@@ -16,7 +16,7 @@ function GeminiProvider.make_request(command, cmd_opts, command_args, text_selec
     -- Payload
     local messages_for_api = {}
     local include_history = true
-    if cmd_opts.is_search_command and vim.g["quickllm_ground_with_history"] == false then
+    if cmd_opts.is_search_command and vim.g.quickllm_ground_with_history == false then
         include_history = false
     end
 
@@ -52,7 +52,7 @@ function GeminiProvider.make_request(command, cmd_opts, command_args, text_selec
 end
 
 function GeminiProvider.make_headers()
-    local api_key = vim.g["quickllm_gemini_api_key"] or os.getenv("GEMINI_API_KEY")
+    local api_key = vim.g.quickllm_gemini_api_key or os.getenv("GEMINI_API_KEY")
 
     if not api_key then
         error(
@@ -122,7 +122,7 @@ function GeminiProvider.handle_response(json, user_message_text, cb, bufnr)
                     History.add_message(bufnr, "user", user_message_text)
                     History.add_message(bufnr, "assistant", response_text)
 
-                    if vim.g["quickllm_clear_visual_selection"] and vim.api.nvim_buf_is_valid(bufnr) then
+                    if vim.g.quickllm_clear_visual_selection and vim.api.nvim_buf_is_valid(bufnr) then
                         vim.api.nvim_buf_set_mark(bufnr, "<", 0, 0, {})
                         vim.api.nvim_buf_set_mark(bufnr, ">", 0, 0, {})
                     end
@@ -244,7 +244,7 @@ function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
                             end
                         end
 
-                        if #collected_sources > 0 and vim.g["quickllm_show_search_sources"] then
+                        if #collected_sources > 0 and vim.g.quickllm_show_search_sources then
                              local sources_text = "\n\n**Sources:**\n" .. table.concat(collected_sources, "\n")
                              cb.on_chunk(sources_text)
                         end

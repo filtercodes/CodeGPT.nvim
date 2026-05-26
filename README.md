@@ -104,10 +104,10 @@ There are also configurable presets: `:Chat1`, `:Chat2`, and `:Chat3`. To quickl
 
 ## Overriding Command Configurations
 
-The configuration option `vim.g["quickllm_commands_defaults"] = {}` can be used to override command configurations. This is a lua table with a list of commands and the options you want to override.
+The configuration option `vim.g.quickllm_commands_defaults = {}` can be used to override command configurations. This is a lua table with a list of commands and the options you want to override.
 
 ```lua
-vim.g["quickllm_commands_defaults"] = {
+vim.g.quickllm_commands_defaults = {
   ["complete"] = {
       user_message_template = "This is a template of the message passed to LLM. Hello, the code snippet is {{text_selection}}."
 }
@@ -130,15 +130,15 @@ A full list of overrides
 
 ### Configuring Providers and Models
 
-Define default models for each provider using `vim.g["quickllm_provider_defaults"]` and `vim.g["quickllm_search_model_defaults"]`. The plugin will use these depending on the active provider or command.
+Define default models for each provider using `vim.g.quickllm_provider_defaults` and `vim.g.quickllm_search_model_defaults`. The plugin will use these depending on the active provider or command.
 
 ```lua
-vim.g["quickllm_provider_defaults"] = {
+vim.g.quickllm_provider_defaults = {
     ollama = { model = "qwen3.6" },
     anthropic = { model = "claude-haiku-4-5" },
 }
 
-vim.g["quickllm_search_model_defaults"] = {
+vim.g.quickllm_search_model_defaults = {
     local_grounding = { model = "gemma4" },
     gemini = { model = "gemini-2.5-flash" }
 }
@@ -146,10 +146,10 @@ vim.g["quickllm_search_model_defaults"] = {
 
 ### Overriding Global Defaults
 
-Generic options (like temperature) can be set globally using `vim.g["quickllm_global_commands_defaults"]`.
+Generic options (like temperature) can be set globally using `vim.g.quickllm_global_commands_defaults`.
 
 ```lua
-vim.g["quickllm_global_commands_defaults"] = {
+vim.g.quickllm_global_commands_defaults = {
     temperature = 0.4,
     -- extra_params = { presence_penalty = 1 }
 }
@@ -161,9 +161,9 @@ Configure the preset commands (`:Chat1`, `:Chat2`, `:Chat3`) by appending number
 
 ```lua
 -- Configure :Chat1 to use Ollama with a specific model
-vim.g["quickllm_api_provider1"] = "ollama"
-vim.g["quickllm_search_provider1"] = "local_grounding"
-vim.g["quickllm_global_commands_defaults1"] = {
+vim.g.quickllm_api_provider1 = "ollama"
+vim.g.quickllm_search_provider1 = "local_grounding"
+vim.g.quickllm_global_commands_defaults1 = {
     model = "deepseek-coder-v2"
 }
 ```
@@ -187,7 +187,7 @@ The `system_message_template` and the `user_message_template` can contain templa
 Some commands have templates that use the `{{language_instructions}}` macro to allow for additional instructions for specific [filetypes](https://neovim.io/doc/user/filetype.html).
 
 ```lua
-vim.g["quickllm_commands_defaults"] = {
+vim.g.quickllm_commands_defaults = {
   ["complete"] = {
       language_instructions = {
           cpp = "Use trailing return type.",
@@ -204,7 +204,7 @@ The above adds a specific `Use trailing return type.` to the command `complete` 
 Commands are normally a single value, for example `:Chat complete`. You can make commands accept additional arguments by using the `{{command_args}}` macro anywhere in either `user_message_template` or `system_message_template`. For example:
 
 ```lua
-vim.g["quickllm_commands"] = {
+vim.g.quickllm_commands = {
   ["testwith"] = {
       user_message_template =
         "Write tests for the following code: ```{{filetype}}\n{{text_selection}}```\n{{command_args}} " ..
@@ -218,10 +218,10 @@ After defining this command, any `:Chat` command that has `testwith` as its firs
 
 ## Custom Commands
 
-Custom commands can be added to the `vim.g["quickllm_commands"]` configuration option to extend the available commands.
+Custom commands can be added to the `vim.g.quickllm_commands` configuration option to extend the available commands.
 
 ```lua
-vim.g["quickllm_commands"] = {
+vim.g.quickllm_commands = {
   ["modernize"] = {
       user_message_template = "I have the following {{language}} code: ```{{filetype}}\n{{text_selection}}```\nModernize the above code. Use current best practices. Only return the code snippet and comments. {{language_instructions}}",
       language_instructions = {
@@ -255,7 +255,7 @@ The default command configuration is:
 You can add custom hooks to update your status line or other ui elements, for example, this code updates the status line colour to yellow whilst the request is in progress.
 
 ```lua
-vim.g["quickllm_hooks"] = {
+vim.g.quickllm_hooks = {
 	request_started = function()
 		vim.cmd("hi StatusLine ctermbg=NONE ctermfg=yellow")
 	end,
@@ -284,7 +284,7 @@ require('lualine').setup({
 To enable the animation of the progress spinner, add `require('lualine').refresh()` to the QuickLLM hooks in configuration so that the status bar redraws during the request:
 
 ```lua
-vim.g["quickllm_hooks"] = {
+vim.g.quickllm_hooks = {
   request_started = function()
     require('lualine').refresh()
   end,
@@ -307,7 +307,7 @@ vim.g.quickllm_print_model = false
 The default filetype of the text popup window is markdown. You can change this by setting the `quickllm_popup_options` variable.
 
 ```lua
-vim.g["quickllm_text_popup_filetype"] = "markdown"
+vim.g.quickllm_text_popup_filetype = "markdown"
 ```
 
 To make the internal code examples have syntax highlighting add your prefered languages to `init.vim`:
@@ -321,13 +321,13 @@ autocmd FileType markdown lua vim.treesitter.stop()
 #### Popup commands
 
 ```lua
-vim.g["quickllm_ui_commands"] = {
+vim.g.quickllm_ui_commands = {
   -- some default commands, you can remap the keys
   quit = "q", -- key to quit the popup
   use_as_output = "<c-o>", -- key to use the popup content as output and replace the original lines
   use_as_input = "<c-i>", -- key to use the popup content as input for a new API request
 }
-vim.g["quickllm_ui_commands"] = {
+vim.g.quickllm_ui_commands = {
   -- tables as defined by nui.nvim https://github.com/MunifTanjim/nui.nvim/tree/main/lua/nui/popup#popupmap
   {"n", "<c-l>", function() print("do something") end, {noremap = false, silent = false}}
 }
@@ -336,7 +336,7 @@ vim.g["quickllm_ui_commands"] = {
 #### Popup layouts
 
 ```lua
-vim.g["quickllm_popup_options"] = {
+vim.g.quickllm_popup_options = {
   -- a table as defined by nui.nvim https://github.com/MunifTanjim/nui.nvim/tree/main/lua/nui/popup#popupupdate_layout
   relative = "editor",
   position = "50%",
@@ -350,7 +350,7 @@ vim.g["quickllm_popup_options"] = {
 #### Popup border
 
 ```lua
-vim.g["quickllm_popup_border"] = {
+vim.g.quickllm_popup_border = {
   -- a table as defined by nui.nvim https://github.com/MunifTanjim/nui.nvim/tree/main/lua/nui/popup#border
   style = "rounded"
 }
@@ -359,7 +359,7 @@ vim.g["quickllm_popup_border"] = {
 
 ``` lua
 -- Enable text wrapping and line numbers
-vim.g["quickllm_popup_window_options"] = {
+vim.g.quickllm_popup_window_options = {
   wrap = true,
   linebreak = true,
   relativenumber = true,
@@ -383,7 +383,7 @@ For any command, you can override the callback type to move the completion to a 
 ```lua
 require("quickllm.config")
 
-vim.g["quickllm_commands"] = {
+vim.g.quickllm_commands = {
   ["complete"] = {
     callback_type = "code_popup",
   },
@@ -396,14 +396,14 @@ If you prefer a horizontal or vertical split window, you can change the popup ty
 
 ```lua
 -- options are "horizontal", "vertical", or "popup". Default is "popup"
-vim.g["quickllm_popup_type"] = "horizontal"
+vim.g.quickllm_popup_type = "horizontal"
 ```
 
 To set the height of the horizontal window or the width of the vertical popup, you can use `quickllm_horizontal_popup_size` and `quickllm_horizontal_popup_size` variables.
 
 ```lua
-vim.g["quickllm_horizontal_popup_size"] = "20%"
-vim.g["quickllm_vertical_popup_size"] = "20%"
+vim.g.quickllm_horizontal_popup_size = "20%"
+vim.g.quickllm_vertical_popup_size = "20%"
 ```
 
 ### History (short-term memory) configuration
@@ -471,9 +471,9 @@ This is an example configuration that shows some of the options available:
 require("quickllm.config")
 
 -- Override the default chat completions url, this is useful to override when testing custom commands
--- vim.g["quickllm_chat_completions_url"] = "http://127.0.0.1:800/test"
+-- vim.g.quickllm_chat_completions_url = "http://127.0.0.1:800/test"
 
-vim.g["quickllm_commands"] = {
+vim.g.quickllm_commands = {
   ["tests"] = {
     -- Language specific instructions for java filetype
     language_instructions = {

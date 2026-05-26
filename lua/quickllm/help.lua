@@ -35,7 +35,7 @@ function M.get_help_lines()
         "## UI Keybindings",
     }
 
-    local ui_cmds = vim.g["quickllm_ui_commands"]
+    local ui_cmds = vim.g.quickllm_ui_commands
     table.insert(lines, "- `" .. ui_cmds.quit .. "`: Quit window")
     table.insert(lines, "- `" .. ui_cmds.use_as_output .. "`: Use as output (replace original selection with response)")
     table.insert(lines, "- `" .. ui_cmds.use_as_input .. "`: Use as input (select response and start new chat)")
@@ -54,7 +54,7 @@ function M.get_help_lines()
 
     for _, name in ipairs(commnds_listed) do
         -- Only add it if it actually exists in the defaults or descriptions
-        if command_descriptions[name] or (vim.g["quickllm_commands_defaults"] and vim.g["quickllm_commands_defaults"][name]) then
+        if command_descriptions[name] or (vim.g.quickllm_commands_defaults and vim.g.quickllm_commands_defaults[name]) then
             table.insert(all_commands, name)
             seen[name] = true
         end
@@ -70,8 +70,8 @@ function M.get_help_lines()
         end
     end
 
-    collect_cmds(vim.g["quickllm_commands_defaults"])
-    collect_cmds(vim.g["quickllm_commands"])
+    collect_cmds(vim.g.quickllm_commands_defaults)
+    collect_cmds(vim.g.quickllm_commands)
 
     for _, name in ipairs(all_commands) do
         local desc = command_descriptions[name] or "Custom user command."
