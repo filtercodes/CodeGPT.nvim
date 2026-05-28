@@ -3,6 +3,7 @@ local Render = require("quickllm.template_render")
 local Utils = require("quickllm.utils")
 local Api = require("quickllm.api")
 local History = require("quickllm.history")
+local Ui = require("quickllm.ui")
 
 GroqProvider = {}
 
@@ -67,9 +68,9 @@ end
 
 function GroqProvider.handle_response(json, user_message_text, cb, bufnr)
     if json == nil then
-        print("Response empty")
+        vim.notify("Groq Error: Response empty", vim.log.levels.ERROR)
     elseif json.error then
-        print("Error: " .. json.error.message)
+        Ui.popup(vim.split(vim.inspect(json), "\n"), "lua", bufnr)
     elseif not json.choices or 0 == #json.choices or not json.choices[1].message then
         print("Error: " .. vim.fn.json_encode(json))
     else
@@ -169,7 +170,12 @@ function GroqProvider.make_call(payload, user_message_text, cb, bufnr)
                     local ok, json = pcall(vim.json.decode, json_str)
                     if ok and json then
                         if json.error then
-                            vim.schedule(function() cb.on_error(json.error.message) end)
+                            vim.schedule(function()
+                                Ui.popup(vim.split(vim.inspect(json), "\n"), "lua", bufnr)
+                                cb.on_error(json.error.message or "Groq Error")
+                                Api.run_finished_hook()
+                            end)
+                            return
                         elseif json.choices and json.choices[1] and json.choices[1].delta and json.choices[1].delta.content then
                             local text = json.choices[1].delta.content
                             full_text = full_text .. text

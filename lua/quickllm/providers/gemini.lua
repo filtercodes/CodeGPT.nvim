@@ -3,8 +3,10 @@ local Render = require("quickllm.template_render")
 local Utils = require("quickllm.utils")
 local Api = require("quickllm.api")
 local History = require("quickllm.history")
+local Ui = require("quickllm.ui")
 
-local GeminiProvider = {}
+GeminiProvider = {}
+
 
 function GeminiProvider.make_request(command, cmd_opts, command_args, text_selection, bufnr)
     -- Get the history of past messages
@@ -40,7 +42,14 @@ function GeminiProvider.make_request(command, cmd_opts, command_args, text_selec
     local request = {
         contents = messages_for_api,
         model = cmd_opts.model,
+        generationConfig = {}
     }
+
+    if cmd_opts.thinking then
+        request.generationConfig.thinking_config = {
+            include_thoughts = true
+        }
+    end
 
     if cmd_opts.is_search_command then
         request.tools = {
@@ -92,9 +101,9 @@ end
 
 function GeminiProvider.handle_response(json, user_message_text, cb, bufnr)
     if json == nil then
-        print("Response empty")
+        vim.notify("Gemini Error: Response empty", vim.log.levels.ERROR)
     elseif json.error then
-        print("Error: " .. json.error.message)
+        Ui.popup(vim.split(vim.inspect(json), "\n"), "lua", bufnr)
     elseif not json.candidates or not json.candidates[1] then
         print("Response is incomplete. Payload: " .. vim.fn.json_encode(json))
     else
@@ -166,19 +175,45 @@ function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
                 local json_str = vim.trim(string.sub(trimmed_line, 6)) -- remove "data:"
                 if json_str ~= "[DONE]" then
                     local ok, json = pcall(vim.json.decode, json_str) 
+                    if ok and json then
+                        -- DEBUG: Show the raw JSON in a popup if enabled
+                        if vim.g.quickllm_debug_json then
+                            vim.schedule(function()
+                                Ui.popup(vim.split(vim.inspect(json), "\n"), "lua", bufnr)
+                            end)
+                            vim.g.quickllm_debug_json = false
+                        end
+                    end
+
                     if not ok then
-                        return nil, nil
+                        return nil, nil, nil
                     end
 
                     if json.error then
-                        return nil, json.error.message or "Unknown Gemini API Error"
+                        return nil, nil, json.error.message or "Unknown Gemini API Error"
                     end
 
                     if json and json.candidates and json.candidates[1] then
                          local candidate = json.candidates[1]
                          local text_fragment = ""
-                         if candidate.content and candidate.content.parts and candidate.content.parts[1] and candidate.content.parts[1].text then
-                             text_fragment = text_fragment .. candidate.content.parts[1].text
+                         local thought_fragment = ""
+
+                         if candidate.content and candidate.content.parts then
+                             for _, part in ipairs(candidate.content.parts) do
+                                 -- 1. Handle "thought" as a boolean flag (Gemini 2.0 Flash Thinking)
+                                 -- In this case, the actual text is in part.text
+                                 if part.thought == true then
+                                     if part.text and type(part.text) == "string" then
+                                         thought_fragment = thought_fragment .. part.text
+                                     end
+                                 -- 2. Handle "thought" as a direct string field
+                                 elseif part.thought and type(part.thought) == "string" then
+                                     thought_fragment = thought_fragment .. part.thought
+                                 -- 3. Handle regular "text" as answer content
+                                 elseif part.text and type(part.text) == "string" then
+                                     text_fragment = text_fragment .. part.text
+                                 end
+                             end
                          end
 
                          if candidate.groundingMetadata and candidate.groundingMetadata.groundingChunks then
@@ -190,10 +225,10 @@ function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
                              end
                          end
 
-                         if text_fragment ~= "" then
-                             return text_fragment, nil
+                         if text_fragment ~= "" or thought_fragment ~= "" then
+                             return text_fragment, thought_fragment, nil
                          elseif candidate.finishReason and candidate.finishReason ~= "STOP" then
-                             return nil, "Gemini Stopped: " .. candidate.finishReason
+                             return nil, nil, "Gemini Stopped: " .. candidate.finishReason
                          end
                     end
                 end
@@ -201,10 +236,10 @@ function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
                 -- Attempt to parse non-SSE error response from the API
                 local ok, json = pcall(vim.json.decode, trimmed_line)
                 if ok and json and json.error then
-                     return nil, json.error.message or "Unknown Gemini API Error"
+                     return nil, nil, json.error.message or "Unknown Gemini API Error"
                 end
             end
-            return nil, nil
+            return nil, nil, nil
         end
 
         curl.post(url, {
@@ -234,19 +269,24 @@ function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
                     vim.schedule(function()
                          -- vim.notify("Gemini Stream End. Collected sources: " .. #collected_sources, vim.log.levels.DEBUG)
                          if partial_data and partial_data ~= "" then
-                            local text_fragment, err_msg = parse_chunk_line(partial_data)
+                            local text_fragment, thought_fragment, err_msg = parse_chunk_line(partial_data)
                             if err_msg then
                                  vim.notify("Gemini Parse Error at EOF: " .. err_msg, vim.log.levels.ERROR)
                                  cb.on_error(err_msg)
-                            elseif text_fragment then
-                                full_text = full_text .. text_fragment
-                                cb.on_chunk(text_fragment)
+                            else
+                                if thought_fragment and thought_fragment ~= "" then
+                                    cb.on_chunk(thought_fragment, true)
+                                end
+                                if text_fragment and text_fragment ~= "" then
+                                    full_text = full_text .. text_fragment
+                                    cb.on_chunk(text_fragment, false)
+                                end
                             end
                         end
 
                         if #collected_sources > 0 and vim.g.quickllm_show_search_sources then
                              local sources_text = "\n\n**Sources:**\n" .. table.concat(collected_sources, "\n")
-                             cb.on_chunk(sources_text)
+                             cb.on_chunk(sources_text, false)
                         end
 
                         if full_text == "" then
@@ -303,16 +343,21 @@ function GeminiProvider.make_call(payload, user_message_text, cb, bufnr)
 
                     -- Process the extracted JSON string
                     local line_to_parse = "data: " .. json_str -- Re-add data: for parse_chunk_line
-                    local text_fragment, err_msg = parse_chunk_line(line_to_parse)
+                    local text_fragment, thought_fragment, err_msg = parse_chunk_line(line_to_parse)
 
                     if err_msg then
                         vim.schedule(function()
                             vim.notify("Gemini Parse Error: " .. err_msg, vim.log.levels.ERROR)
                             cb.on_error(err_msg)
                         end)
-                    elseif text_fragment then
-                        full_text = full_text .. text_fragment
-                        cb.on_chunk(text_fragment)
+                    else
+                        if thought_fragment and thought_fragment ~= "" then
+                            cb.on_chunk(thought_fragment, true)
+                        end
+                        if text_fragment and text_fragment ~= "" then
+                            full_text = full_text .. text_fragment
+                            cb.on_chunk(text_fragment, false)
+                        end
                     end
 
                     -- After processing a JSON object, check for and skip any immediate trailing newlines

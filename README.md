@@ -104,46 +104,58 @@ There are also configurable presets: `:Chat1`, `:Chat2`, and `:Chat3`. To quickl
 
 ## Overriding Command Configurations
 
-The configuration option `vim.g.quickllm_commands_defaults = {}` can be used to override command configurations. This is a lua table with a list of commands and the options you want to override.
+The configuration option `vim.g.quickllm_commands_defaults = {}` allows you to override settings for specific commands. This is particularly useful for controlling **latency vs. reasoning**.
+
+For instance, you may want `Chat` command to use a "thinking" model for deep reasoning, but not the `Complete` or `Edit` commands. Disabling reasoning tokens will make these commands faster but with a possible loss of model accuracy.
 
 ```lua
 vim.g.quickllm_commands_defaults = {
   ["complete"] = {
-      user_message_template = "This is a template of the message passed to LLM. Hello, the code snippet is {{text_selection}}."
+      thinking = false, -- Disable reasoning for quick autocompletion
+      user_message_template = "Complete the following code: {{text_selection}}"
+  },
+  ["edit"] = {
+      thinking = true, -- Apply background reasoning only when running edit command
+  }
 }
 ```
-The above, overrides the message template for the completion command.
 
-A full list of overrides
+### Full list of overrides
 
 | name                    | default         | description                                                                                                                                                       |
 |-------------------------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| model                   | "gpt-5-nano" | The model to use.                                                                                                                                                 |
-| max_tokens              | 16384            | The maximum number of tokens to use including the prompt tokens.                                                                                                  |
+| model                   | "gpt-5-nano" | The model to use.                                                                                                                                                    |
+| max_tokens              | 16384            | The maximum number of tokens to use including the prompt tokens.                                                                                                 |
 | temperature             | 0.2             | 0 -> 1, what sampling temperature to use.                                                                                                                         |
 | system_message_template | ""              | Helps set the behavior of the assistant.                                                                                                                          |
 | user_message_template   | ""              | Instructs the assistant.                                                                                                                                          |
 | callback_type           | "replace_lines" | Controls what the plugin does with the response                                                                                                                   |
+| loading_message         | "Generating..." | The message displayed in the spinner while waiting for a response.                                                                                                |
+| allow_empty_text_selection | false        | If true, the command can be run without a visual selection.                                                                                                       |
 | language_instructions   | {}              | A table of filetype => instructions. The current buffer's filetype is used in this lookup. This is useful trigger different instructions for different languages. |
 | extra_params            | {}              | A table of custom parameters to be sent to the API.                                                                                                               |
-| allow_empty_text_selection | false        | If true, the command can be run without a visual selection.                                                                                                       |
-| loading_message         | "Generating..." | The message displayed in the spinner while waiting for a response.                                                                                                |
 
 
 ### Configuring Providers and Models
 
-Define default models for each provider using `vim.g.quickllm_provider_defaults` and `vim.g.quickllm_search_model_defaults`. The plugin will use these depending on the active provider or command.
+Define default models for each provider using `vim.g.quickllm_provider_defaults` and `vim.g.quickllm_search_model_defaults`.
 
 ```lua
 vim.g.quickllm_provider_defaults = {
-    ollama = { model = "qwen3.6" },
+    ollama = {
+        model = "deepseek-r1:7b",
+        thinking = true -- Enable reasoning for this provider
+    },
     anthropic = { model = "claude-haiku-4-5" },
 }
 
 vim.g.quickllm_search_model_defaults = {
     local_grounding = { model = "gemma4" },
-    gemini = { model = "gemini-2.5-flash" }
+    gemini = { model = "gemini-3.5-flash" }
 }
+
+-- Global UI toggle: Show or hide the thinking context in the popup
+vim.g.quickllm_show_thinking = true
 ```
 
 ### Overriding Global Defaults
@@ -172,12 +184,13 @@ vim.g.quickllm_global_commands_defaults1 = {
 
 ### Configuration Merging Logic
 
-The system uses a "Waterfall" merging logic to determine the final settings (like model, temperature, or system prompt) for any given request. Settings are applied in the following order:
+The system uses a "Waterfall" merging logic to determine the final settings (like model, temperature, or thinking) for any given request. Settings are applied in the following order:
 
-1. **Hardcoded Defaults**: Base values (lowest priority).
-2. **Provider Defaults**: Values defined in `vim.g.quickllm_provider_defaults` (e.g., your model and system prompt for Ollama).
-3. **Global Overrides**: Values defined in `vim.g.quickllm_global_commands_defaults`.
-4. **Command-Specific Overrides**: Values defined in `vim.g.quickllm_commands` (highest priority).
+1. **Hardcoded Defaults**: Base values defined in the code (lowest priority).
+2. **Provider Defaults**: Values defined in `vim.g.quickllm_provider_defaults`.
+3. **Preset-Specific Provider Defaults**: Values in `vim.g.quickllm_provider_defaults1`, `defaults2`, etc.
+4. **Global Overrides**: Values defined in `vim.g.quickllm_global_commands_defaults`.
+5. **Command-Specific Overrides**: Values defined in `vim.g.quickllm_commands` (highest priority).
 
 
 ### Optimizing Local Models (Ollama)
@@ -265,15 +278,17 @@ The above configuration adds the command `:Chat modernize` that attempts moderni
 
 ##  Command Defaults
 
-The default command configuration is:
+The base configuration for all commands is:
 
 ```lua
 {
     temperature = 0.2,
-    number_of_choices = 1,
-    system_message_template = "",
+    thinking = false,
+    system_message_template = "You are a {{language}} coding assistant.",
     user_message_template = "",
     callback_type = "replace_lines",
+    allow_empty_text_selection = false,
+    extra_params = {},
 }
 ```
 

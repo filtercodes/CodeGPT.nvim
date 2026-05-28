@@ -83,6 +83,9 @@ vim.g.quickllm_text_popup_filetype = "markdown"
 -- Set the type of ui to use for the popup, options are "popup", "vertical" or "horizontal"
 vim.g.quickllm_popup_type = "popup"
 
+-- Whether to show the thinking process in the UI (if supported by the provider)
+vim.g.quickllm_show_thinking = true
+
 -- Set the layout of the popup window
 vim.g.quickllm_popup_layout = {
   relative = "editor",

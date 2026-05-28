@@ -3,6 +3,7 @@ local Render = require("quickllm.template_render")
 local Utils = require("quickllm.utils")
 local Api = require("quickllm.api")
 local History = require("quickllm.history")
+local Ui = require("quickllm.ui")
 
 AnthropicProvider = {}
 
@@ -43,14 +44,18 @@ function AnthropicProvider.make_request(command, cmd_opts, command_args, text_se
     -- Capability detection based on model ID
     local is_sonnet = model:find("sonnet") ~= nil
     local is_search = cmd_opts.is_search_command
+    -- Use the unified thinking flag
+    local should_think = cmd_opts.thinking
 
-    if is_search then
-        -- Default Search version
-        request.tools = {
-            { type = "web_search_20250305", name = "web_search", max_uses = 5 }
-        }
+    if is_search or should_think then
+        -- Default Search version if applicable
+        if is_search then
+            request.tools = {
+                { type = "web_search_20250305", name = "web_search", max_uses = 5 }
+            }
+        end
 
-        -- Only enable thinking for Sonnet when searching
+        -- Enable thinking for Sonnet if requested or searching
         if is_sonnet then
             local budget = math.floor((tonumber(max_tokens) or 4096) * 0.5)
             if budget < 1024 then budget = 1024 end
@@ -193,11 +198,21 @@ function AnthropicProvider.make_call(payload, user_message_text, cb, bufnr)
                     if json_str ~= "" and json_str ~= "[DONE]" then
                         local ok, json = pcall(vim.json.decode, json_str)
                         if ok and json then
+                            -- DEBUG: Show the raw JSON in a popup if enabled
+                            if vim.g.quickllm_debug_json then
+                                vim.schedule(function()
+                                    Ui.popup(vim.split(vim.inspect(json), "\n"), "lua", bufnr)
+                                end)
+                                vim.g.quickllm_debug_json = false
+                            end
+
                             if json.type == "error" then
                                 vim.schedule(function()
-                                    vim.notify("Anthropic API Error: " .. (json.error.message or vim.inspect(json.error)), vim.log.levels.ERROR)
-                                    cb.on_error(json.error.message)
+                                    Ui.popup(vim.split(vim.inspect(json), "\n"), "lua", bufnr)
+                                    cb.on_error(json.error.message or "Anthropic Error")
+                                    Api.run_finished_hook()
                                 end)
+                                return
                             elseif json.type == "content_block_start" then
                                 local block = json.content_block
                                 if block and block.type == "web_search_tool_result" and block.content then
@@ -211,26 +226,17 @@ function AnthropicProvider.make_call(payload, user_message_text, cb, bufnr)
                             elseif json.type == "content_block_delta" and json.delta then
                                 if json.delta.text then
                                     full_text = full_text .. json.delta.text
-                                    cb.on_chunk(json.delta.text)
+                                    cb.on_chunk(json.delta.text, false)
                                 elseif json.delta.type == "text_delta" and json.delta.text then
                                     full_text = full_text .. json.delta.text
-                                    cb.on_chunk(json.delta.text)
+                                    cb.on_chunk(json.delta.text, false)
                                 elseif json.delta.type == "thinking_delta" and json.delta.thinking then
-                                    full_text = full_text .. json.delta.thinking
-                                    cb.on_chunk(json.delta.thinking)
+                                    -- Thinking is NOT added to full_text (clean history)
+                                    cb.on_chunk(json.delta.thinking, true)
                                 elseif json.delta.type == "input_json_delta" and json.delta.partial_json then
                                     -- cb.on_chunk(json.delta.partial_json)
                                     -- Do not stream raw JSON tool queries to the UI.
                                     -- This allows the spinner to continue running until the actual answer starts streaming.
-                                end
-                            elseif json.type == "content_block_stop" and json.index then
-                                -- We check if the previous block was thinking by looking at the last characters.
-                                -- The safest way is to just let the text_delta start on a new line if thinking happened.
-                                -- Anthropic streams thinking in block 0 (usually), and the actual text in block 1.
-                                -- So when a block stops, if it's block 0, we can add some spacing just in case it was thinking.
-                                if json.index == 0 and payload.thinking then
-                                    full_text = full_text .. "\n\n"
-                                    cb.on_chunk("\n\n")
                                 end
                             end
                         end

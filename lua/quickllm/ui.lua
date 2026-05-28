@@ -82,6 +82,7 @@ end
 
 local function create_horizontal()
     local size = vim.g.quickllm_horizontal_popup_size or "40%"
+
     local split_obj = Split({
         relative = "editor",
         position = "bottom",
@@ -102,6 +103,7 @@ end
 
 local function create_vertical()
     local size = vim.g.quickllm_vertical_popup_size or "50%"
+
     local split_obj = Split({
         relative = "editor",
         position = "right",
@@ -183,11 +185,11 @@ end
 ---Syncs the window height to match the buffer content.
 function Ui.sync_window_size(ui_bufnr)
     local info = active_popups[ui_bufnr]
-    if not info or not info.ui_elem then return end
+    if not info or not info.ui_elem then return 0, 0 end
 
     -- Dynamic resizing only applies to 'popup' type (not horizontal/vertical splits)
     if vim.g.quickllm_popup_type ~= "popup" then
-        return
+        return 0, 0
     end
 
     -- Calculate visual line count (accounting for wrapping)
@@ -196,16 +198,22 @@ function Ui.sync_window_size(ui_bufnr)
     local available_width = info.max_w
 
     -- Account for potential border/padding if NUI doesn't subtract them from max_w
-    -- Most borders take 2 columns.
+    -- Most borders take 2 columns (one for each side).
     local wrap_width = math.max(1, available_width - 2)
 
-    for _, line in ipairs(lines) do
+    local num_lines = #lines
+    for i, line in ipairs(lines) do
         -- A line takes at least 1 visual row.
         -- If it's longer than wrap_width, it takes ceil(len / wrap_width) rows.
         -- Note: this is a simple estimation that works well for monospaced fonts.
         local line_len = #line
         if line_len == 0 then
-            visual_height = visual_height + 1
+            -- PHANTOM LINE FIX: We only count empty lines if they are not a trailing
+            -- phantom line from a split or if it's the only line in the buffer.
+            -- This prevents the window from being 1 line taller than the actual text.
+            if i < num_lines or num_lines == 1 then
+                visual_height = visual_height + 1
+            end
         else
             visual_height = visual_height + math.ceil(line_len / wrap_width)
         end
@@ -225,6 +233,9 @@ function Ui.sync_window_size(ui_bufnr)
         })
         info.current_h = new_h
     end
+
+    -- Return the height information to help the caller decide on scrolling strategy
+    return visual_height, info.max_h
 end
 
 function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_col)
@@ -262,7 +273,8 @@ function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_co
         max_row = max_row,
         max_w = max_w,
         col = col,
-        current_h = (popup_type == "popup" and 1 or max_h)
+        current_h = (popup_type == "popup" and 1 or max_h),
+        last_chunk_was_thinking = false,
     }
 
     -- Sync initial size (only for popups)
@@ -389,12 +401,26 @@ function Ui.start_spinner(bufnr, loading_message)
     end
 end
 
-function Ui.append_to_buf(bufnr, text_chunk)
-    if text_chunk == nil or #text_chunk == 0 then
-        return
+---Updates the thinking state for a buffer, inserting a separator if transitioning to an answer.
+function Ui.update_thinking_state(bufnr, is_thinking, show_thinking)
+    local info = active_popups[bufnr]
+    if not info then return "" end
+
+    local separator = ""
+    if info.last_chunk_was_thinking and not is_thinking then
+        -- Transition from thinking to answer
+        -- Only add separator if we are showing the thinking text
+        if show_thinking then
+            separator = "\n\n---\n\n"
+        end
     end
 
-    if not vim.api.nvim_buf_is_valid(bufnr) then
+    info.last_chunk_was_thinking = is_thinking
+    return separator
+end
+
+function Ui.append_to_buf(bufnr, text_chunk, is_thinking)
+    if text_chunk == nil or #text_chunk == 0 then
         return
     end
 
@@ -405,20 +431,51 @@ function Ui.append_to_buf(bufnr, text_chunk)
         last_line_len = #last_line
     end
 
-    -- Identify if we should auto-scroll (cursor is at the last line before appending)
-    local winid = vim.fn.bufwinid(bufnr)
-    local should_scroll = winid ~= -1 and vim.api.nvim_win_get_cursor(winid)[1] == current_line_count
-
     -- Append the chunk at the end of the buffer
-    -- nvim_buf_set_text handles newlines within the text_chunk correctly.
-    vim.api.nvim_buf_set_text(bufnr, current_line_count - 1, last_line_len, current_line_count - 1, last_line_len, vim.split(text_chunk, '\n', { plain = true }))
+    local start_line = current_line_count - 1
+    local start_col = last_line_len
 
-    -- Dynamically resize
-    Ui.sync_window_size(bufnr)
+    vim.api.nvim_buf_set_text(bufnr, start_line, start_col, start_line, start_col, vim.split(text_chunk, '\n', { plain = true }))
 
-    -- Auto-scroll if following
-    if should_scroll then
-        pcall(vim.api.nvim_win_set_cursor, winid, {vim.api.nvim_buf_line_count(bufnr), 0})
+    -- Apply thinking highlight if applicable
+    if is_thinking then
+        local end_line = vim.api.nvim_buf_line_count(bufnr) - 1
+        local ns_id = vim.api.nvim_create_namespace("quickllm_thinking")
+
+        -- Get the exact length of the final line to avoid highlighting "until end of line" (-1)
+        -- This prevents the "Comment" style from bleeding into the normal answer font.
+        local final_lines = vim.api.nvim_buf_get_lines(bufnr, end_line, end_line + 1, false)
+        local final_col = #final_lines[1]
+
+        if start_line == end_line then
+            vim.api.nvim_buf_add_highlight(bufnr, ns_id, "Comment", start_line, start_col, final_col)
+        else
+            -- Multi-line thinking chunk
+            vim.api.nvim_buf_add_highlight(bufnr, ns_id, "Comment", start_line, start_col, -1)
+            for i = start_line + 1, end_line - 1 do
+                vim.api.nvim_buf_add_highlight(bufnr, ns_id, "Comment", i, 0, -1)
+            end
+            vim.api.nvim_buf_add_highlight(bufnr, ns_id, "Comment", end_line, 0, final_col)
+        end
+    end
+
+    -- Dynamically resize and get height information for scrolling strategy
+    local visual_height, max_h = Ui.sync_window_size(bufnr)
+
+    -- PASSIVE SCROLLING:
+    -- To prevent UI jitter and "shaking" for short messages, we keep the cursor
+    -- at the top (1, 0) while the window is blooming (visual_height < max_h).
+    -- We only jump the cursor to the bottom and begin active scrolling once
+    -- the content exceeds the maximum allowed window size.
+    local winid = vim.fn.bufwinid(bufnr)
+    if winid ~= -1 then
+        if visual_height >= max_h then
+            -- Content is overflowing: move cursor to end to follow the stream
+            pcall(vim.api.nvim_win_set_cursor, winid, {vim.api.nvim_buf_line_count(bufnr), 0})
+        else
+            -- Content is still within bloom range: keep cursor at top for stability
+            pcall(vim.api.nvim_win_set_cursor, winid, {1, 0})
+        end
     end
 end
 

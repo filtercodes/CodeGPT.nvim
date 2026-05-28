@@ -3,6 +3,7 @@ local Render = require("quickllm.template_render")
 local Utils = require("quickllm.utils")
 local Api = require("quickllm.api")
 local History = require("quickllm.history")
+local Ui = require("quickllm.ui")
 
 OpenAIProvider = {}
 
@@ -12,9 +13,18 @@ function OpenAIProvider.make_request(command, cmd_opts, command_args, text_selec
     local past_messages = History.get_messages(bufnr)
     local new_user_message_text = Render.render(command, cmd_opts.user_message_template, command_args, text_selection, cmd_opts)
     local system_message_text = Render.render(command, cmd_opts.system_message_template, command_args, text_selection, cmd_opts)
+
+    local model = cmd_opts.model
+    -- Detect if we should use the new "Responses" API (gpt-5.5, search commands, etc.)
+    local use_responses_api = model:find("^gpt%-5%.5") or cmd_opts.is_search_command
+    -- Detect if this is a standard o-series reasoning model
+    local is_o_series = model:find("^o1") or model:find("^o3")
+
     local messages_for_api = {}
     if system_message_text and system_message_text ~= "" then
-        table.insert(messages_for_api, {role="system", content=system_message_text})
+        -- Reasoning models prefer "developer" role
+        local system_role = (is_o_series or use_responses_api) and "developer" or "system"
+        table.insert(messages_for_api, {role=system_role, content=system_message_text})
     end
 
     local include_history = true
@@ -30,17 +40,48 @@ function OpenAIProvider.make_request(command, cmd_opts, command_args, text_selec
     table.insert(messages_for_api, {role="user", content=new_user_message_text})
 
     local request = {
-        model = cmd_opts.model,
+        model = model,
     }
 
-    if cmd_opts.is_search_command then
+    -- 1. Route to correct API structure
+    if use_responses_api then
         request.input = messages_for_api
-        request.tools = { { type = "web_search" } }
+        if cmd_opts.is_search_command then
+            request.tools = { { type = "web_search" } }
+        end
+        -- New Responses API uses nested reasoning object
+        if cmd_opts.thinking then
+            request.reasoning = {
+                effort = "medium",
+                summary = "auto" -- Opt-in to visible reasoning summaries
+            }
+            -- Reasoning often requires an explicit token limit
+            if not request.max_tokens and not request.max_output_tokens then
+                request.max_output_tokens = 2048
+            end
+        end
     else
         request.messages = messages_for_api
+        -- Standard o-series reasoning
+        if is_o_series or cmd_opts.thinking then
+            request.reasoning_effort = "medium"
+            request.temperature = 1.0
+        end
     end
 
     request = vim.tbl_extend("force", request, cmd_opts.extra_params)
+
+    -- 2. Token Parameter Normalization
+    if use_responses_api then
+        if request.max_tokens then
+            request.max_output_tokens = request.max_tokens
+            request.max_tokens = nil
+        end
+    elseif is_o_series and request.max_tokens then
+        request.max_completion_tokens = request.max_tokens
+        request.max_tokens = nil
+    end
+
     return request, new_user_message_text
 end
 
@@ -131,12 +172,14 @@ function OpenAIProvider.handle_response(json, user_message_text, cb, bufnr)
             print("Error: No response text found in v1/responses output")
         end
     elseif json.choices and json.choices[1] and json.choices[1].message then
-        local response_text = json.choices[1].message.content
+        local message = json.choices[1].message
+        local response_text = message.content
+
         if response_text ~= nil then
             if type(response_text) ~= "string" or response_text == "" then
                 print("Error: No response text " .. type(response_text))
             else
-                -- Add history
+                -- Add history (Clean: only the answer)
                 History.add_message(bufnr, "user", user_message_text)
                 History.add_message(bufnr, "assistant", response_text)
 
@@ -156,7 +199,8 @@ end
 
 function OpenAIProvider.make_call(payload, user_message_text, cb, bufnr)
     local url = vim.g.quickllm_chat_completions_url
-    if payload.tools and payload.tools[1] and payload.tools[1].type == "web_search" then
+    -- If the payload uses "input" (Responses API) instead of "messages" (Chat API)
+    if payload.input then
         url = vim.g.quickllm_openai_responses_url or "https://api.openai.com/v1/responses"
     end
     local headers = OpenAIProvider.make_headers()
@@ -230,11 +274,35 @@ function OpenAIProvider.make_call(payload, user_message_text, cb, bufnr)
 
                     local ok, json = pcall(vim.json.decode, json_str)
                     if ok and json then
+                        -- DEBUG: Show the raw JSON in a popup if enabled
+                        if vim.g.quickllm_debug_json then
+                            vim.schedule(function()
+                                Ui.popup(vim.split(vim.inspect(json), "\n"), "lua", bufnr)
+                            end)
+                            vim.g.quickllm_debug_json = false
+                        end
+
                         if json.error then
-                            vim.schedule(function() cb.on_error(json.error.message) end)
+                            vim.schedule(function()
+                                Ui.popup(vim.split(vim.inspect(json), "\n"), "lua", bufnr)
+                                cb.on_error(json.error.message or "OpenAI Error")
+                                Api.run_finished_hook()
+                            end)
+                            return
                         elseif json.type == "response.output_text.delta" and json.delta then
                             full_text = full_text .. json.delta
-                            cb.on_chunk(json.delta)
+                            cb.on_chunk(json.delta, false)
+                        elseif json.type == "response.summary_text.delta" and json.delta then
+                            -- Reasoning summaries in the Responses API
+                            cb.on_chunk(json.delta, true)
+                        elseif (json.type == "response.reasoning_content.delta" or
+                                json.type == "response.reasoning.delta" or
+                                json.type == "response.reasoning_text.delta") and json.delta then
+                            -- Reasoning tokens in various Search/Responses API formats
+                            cb.on_chunk(json.delta, true)
+                        elseif json.reasoning_delta then
+                            -- Catch reasoning_delta field directly if present
+                            cb.on_chunk(json.reasoning_delta, true)
                         elseif json.type == "response.completed" and json.response and json.response.output then
                             -- Extract citations from final response
                             local sources = {}
@@ -255,13 +323,20 @@ function OpenAIProvider.make_call(payload, user_message_text, cb, bufnr)
                             if #sources > 0 and vim.g.quickllm_show_search_sources then
                                 local sources_text = "\n\n**Sources:**\n" .. table.concat(sources, "\n")
                                 full_text = full_text .. sources_text
-                                cb.on_chunk(sources_text)
+                                cb.on_chunk(sources_text, false)
                             end
-                        elseif json.choices and json.choices[1] and json.choices[1].delta and json.choices[1].delta.content then
-                            -- Standard chat completions format
-                            local text = json.choices[1].delta.content
-                            full_text = full_text .. text
-                            cb.on_chunk(text)
+                        elseif json.choices and json.choices[1] and json.choices[1].delta then
+                            local delta = json.choices[1].delta
+                            -- Handle Reasoning/Thinking (e.g. o1/o3 models)
+                            if delta.reasoning_content then
+                                -- Do NOT append thinking to full_text for clean history
+                                cb.on_chunk(delta.reasoning_content, true)
+                            end
+                            -- Handle Actual Answer
+                            if delta.content then
+                                full_text = full_text .. delta.content
+                                cb.on_chunk(delta.content, false)
+                            end
                         end
                     end
                 end

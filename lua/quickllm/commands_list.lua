@@ -49,10 +49,18 @@ function CommandsList.get_cmd_opts(cmd, overrides)
         or "openai"
     provider_name = string.lower(provider_name)
 
-    -- Merge provider defaults (which already include the user's plugin.lua overrides via config.lua)
-    local provider_defaults = vim.g.quickllm_provider_defaults or {}
-    if provider_defaults[provider_name] then
-        opts = vim.tbl_extend("force", opts, provider_defaults[provider_name])
+    -- Merge provider defaults (Global fallback)
+    local global_provider_defaults = vim.g.quickllm_provider_defaults or {}
+    if global_provider_defaults[provider_name] then
+        opts = vim.tbl_extend("force", opts, global_provider_defaults[provider_name])
+    end
+
+    -- Merge preset-specific provider defaults (Higher precedence)
+    if preset_suffix ~= "" then
+        local preset_provider_defaults = vim.g["quickllm_provider_defaults" .. preset_suffix] or {}
+        if preset_provider_defaults[provider_name] then
+            opts = vim.tbl_extend("force", opts, preset_provider_defaults[provider_name])
+        end
     end
 
     -- Merge the user's generic global defaults (base or preset-specific)
