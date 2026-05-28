@@ -289,16 +289,14 @@ function OpenAIProvider.make_call(payload, user_message_text, cb, bufnr)
                                 Api.run_finished_hook()
                             end)
                             return
-                        elseif json.type == "response.output_text.delta" and json.delta then
+                        elseif (json.type == "response.output_text.delta" or json.type == "response.text_delta") and json.delta then
                             full_text = full_text .. json.delta
                             cb.on_chunk(json.delta, false)
-                        elseif json.type == "response.summary_text.delta" and json.delta then
-                            -- Reasoning summaries in the Responses API
-                            cb.on_chunk(json.delta, true)
-                        elseif (json.type == "response.reasoning_content.delta" or
+                        elseif (json.type == "response.summary_text.delta" or 
+                                json.type == "response.reasoning_content.delta" or
                                 json.type == "response.reasoning.delta" or
                                 json.type == "response.reasoning_text.delta") and json.delta then
-                            -- Reasoning tokens in various Search/Responses API formats
+                            -- Various reasoning/thinking tokens
                             cb.on_chunk(json.delta, true)
                         elseif json.reasoning_delta then
                             -- Catch reasoning_delta field directly if present

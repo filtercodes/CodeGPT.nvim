@@ -17,9 +17,7 @@ local command_descriptions = {
     generate = "Generates new code from scratch based on a prompt. Use this when you want to create a new function or class without starting from existing code.",
     clear = "Clears the chat history for the current buffer. This resets the conversation context.",
     recall = "Displays the last response from the assistant in a popup window. Accepts an optional number to go further back (e.g., `:Chat recall 2` for the second-to-last response).",
-    last = "Alias for 'recall'. Displays a previous response from the assistant.",
-    rewind = "Removes the last exchange (your prompt and the assistant's response) from the chat history. Useful for undoing a bad conversation turn.",
-    undo = "Alias for 'rewind'. Removes the last exchange from the history.",
+    undo = "Removes the last exchange (your prompt and the assistant's response) from the chat history. Useful for undoing a bad conversation turn.",
     help = "Displays this help file, listing available commands, keybindings, and configuration options.",
 }
 
@@ -46,7 +44,7 @@ function M.get_help_lines()
     local commnds_listed = {
         "chat", "search", "complete", "edit", "explain", "doc", "tests",
         "opt", "debug", "question", "generate", "clear",
-        "recall", "last", "rewind", "undo", "help"
+        "recall", "undo", "help"
     }
 
     local all_commands = {}
@@ -80,7 +78,7 @@ function M.get_help_lines()
         table.insert(lines, "")
     end
 
-    table.insert(lines, "## Configuration")
+    table.insert(lines, "### Configuration")
     table.insert(lines, "You can customize QuickLLM by setting global variables in your Neovim config (init.lua).")
     table.insert(lines, "")
     
@@ -91,22 +89,30 @@ function M.get_help_lines()
     table.insert(lines, "")
     
     table.insert(lines, "### Model Configuration")
-    table.insert(lines, "To change the model, you can set defaults per command or globally.")
+    table.insert(lines, "To change the model or other settings, use the unified defaults table.")
     table.insert(lines, "")
-    table.insert(lines, "`vim.g.quickllm_global_commands_defaults` (table)")
-    table.insert(lines, "Sets default parameters for ALL commands. Useful for forcing a specific model everywhere.")
-    table.insert(lines, "Example: `vim.g.quickllm_global_commands_defaults = { model = 'gpt-4o' }`")
+    table.insert(lines, "`vim.g.quickllm_commands_defaults` (table)")
+    table.insert(lines, "A dual-purpose table. Flat keys act as global defaults for all commands. Nested tables override settings for a specific command.")
+    table.insert(lines, "Example:")
+    table.insert(lines, "```lua")
+    table.insert(lines, "vim.g.quickllm_commands_defaults = {")
+    table.insert(lines, "  model = 'gpt-5.4-nano', -- Global")
+    table.insert(lines, "  thinking = true,      -- Global")
+    table.insert(lines, "  complete = {")
+    table.insert(lines, "    thinking = false    -- Override for 'complete'")
+    table.insert(lines, "  }")
+    table.insert(lines, "}")
+    table.insert(lines, "```")
     table.insert(lines, "")
     table.insert(lines, "`vim.g.quickllm_commands` (table)")
-    table.insert(lines, "Overrides specific commands. Useful for using different models for different tasks (e.g., a cheaper model for docs, a smarter one for coding).")
-    table.insert(lines, "Example: `vim.g.quickllm_commands = { doc = { model = 'gpt-3.5-turbo' } }`")
+    table.insert(lines, "User-defined commands. These have the highest precedence.")
     table.insert(lines, "")
 
     table.insert(lines, "### Search (Grounding)")
     table.insert(lines, "To set the search model.")
     table.insert(lines, "")
-    table.insert(lines, "Example: `vim.g.quickllm_search_provider = anthropic`")
-    table.insert(lines, "`vim.g.quickllm_global_commands_defaults = { search_model = 'claude-sonnet-4-6' }`")
+    table.insert(lines, "Example: `vim.g.quickllm_search_provider = 'anthropic'`")
+    table.insert(lines, "`vim.g.quickllm_commands_defaults = { search_model = 'claude-sonnet-4-6' }`")
     table.insert(lines, "Overrides default grounding model. Be aware that API specs might be different for older models")
     table.insert(lines, "")
 

@@ -187,6 +187,11 @@ function Ui.sync_window_size(ui_bufnr)
     local info = active_popups[ui_bufnr]
     if not info or not info.ui_elem then return 0, 0 end
 
+    -- Safety Guard: Ensure we never operate on a 0 or invalid buffer
+    if ui_bufnr <= 0 or not vim.api.nvim_buf_is_valid(ui_bufnr) then
+        return 0, 0
+    end
+
     -- Dynamic resizing only applies to 'popup' type (not horizontal/vertical splits)
     if vim.g.quickllm_popup_type ~= "popup" then
         return 0, 0
@@ -275,6 +280,7 @@ function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_co
         col = col,
         current_h = (popup_type == "popup" and 1 or max_h),
         last_chunk_was_thinking = false,
+        following = true,
     }
 
     -- Sync initial size (only for popups)
@@ -424,6 +430,30 @@ function Ui.append_to_buf(bufnr, text_chunk, is_thinking)
         return
     end
 
+    local info = active_popups[bufnr]
+    local winid = vim.fn.bufwinid(bufnr)
+
+    -- Check if user moved the cursor manually away from the following point.
+    -- If so, we disable 'following' so we don't take over their cursor.
+    if winid ~= -1 and info and info.following then
+        local cursor = vim.api.nvim_win_get_cursor(winid)
+        local line_count = vim.api.nvim_buf_line_count(bufnr)
+
+        if info.current_h >= info.max_h then
+            -- We are in active scrolling mode. If the cursor is not at the bottom, 
+            -- the user has moved away.
+            if cursor[1] < line_count then
+                info.following = false
+            end
+        else
+            -- We are in blooming mode (centering at the top). If the cursor
+            -- is not at the first line, the user has moved away.
+            if cursor[1] > 1 then
+                info.following = false
+            end
+        end
+    end
+
     local current_line_count = vim.api.nvim_buf_line_count(bufnr)
     local last_line_len = 0
     if current_line_count > 0 then
@@ -467,8 +497,7 @@ function Ui.append_to_buf(bufnr, text_chunk, is_thinking)
     -- at the top (1, 0) while the window is blooming (visual_height < max_h).
     -- We only jump the cursor to the bottom and begin active scrolling once
     -- the content exceeds the maximum allowed window size.
-    local winid = vim.fn.bufwinid(bufnr)
-    if winid ~= -1 then
+    if winid ~= -1 and info and info.following then
         if visual_height >= max_h then
             -- Content is overflowing: move cursor to end to follow the stream
             pcall(vim.api.nvim_win_set_cursor, winid, {vim.api.nvim_buf_line_count(bufnr), 0})

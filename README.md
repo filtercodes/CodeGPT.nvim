@@ -20,7 +20,7 @@ Installing with [lazy.nvim](https://github.com/folke/lazy.nvim).
       require("quickllm.config")
       vim.g.quickllm_api_provider = "ollama" -- Run a local model with ollama
       vim.g.quickllm_provider_defaults = {
-          ollama = { model = "qwen3.6" }
+          ollama = { model = "gemma4" }
       }
       -- Add other commands (explained further in this readme file)
    end
@@ -97,58 +97,69 @@ There are also configurable presets: `:Chat1`, `:Chat2`, and `:Chat3`. To quickl
 | doc  |  text selection | Will ask LLM to document the selected code. Will update the text directly in the editor. |
 | opt  |  text selection | Will ask LLM to optimize the selected code. Will update the code directly in the editor. |
 | tests  |  text selection | Will ask LLM to write unit tests for the selected code in the popup window. |
-| recall / last | none or number | Will display the last assistant response from the chat history in a popup without altering the history. Optionally accept a number to go further back (e.g., `:Chat recall 2`). |
-| rewind / undo | none | Will remove the last exchange (your prompt and the assistant's response) from the chat history. Useful for reverting a bad conversation turn. |
+| recall | none or number | Will display the last assistant response from the chat history in a popup without altering the history. Optionally accept a number to go further back (e.g., `:Chat recall 2`). |
+| undo | none | Will remove the last exchange (your prompt and the assistant's response) from the chat history. Useful for reverting a bad conversation turn. |
 | clear | none | Will delete complete chat short-term memory to start blank. |
 | help | none | Displays the help guide. |
 
 ## Overriding Command Configurations
 
-The configuration option `vim.g.quickllm_commands_defaults = {}` allows you to override settings for specific commands. This is particularly useful for controlling **latency vs. reasoning**.
+The primary configuration table is `vim.g.quickllm_commands_defaults`. It is a **dual-purpose table** that allows you to set options both globally (to all commands) and directly for specific commands.
 
-For instance, you may want `Chat` command to use a "thinking" model for deep reasoning, but not the `Complete` or `Edit` commands. Disabling reasoning tokens will make these commands faster but with a possible loss of model accuracy.
+### Setting Defaults
+
+Any key placed directly in `quickllm_commands_defaults` acts as a global default. To override a setting for a specific command, add a sub-table with the command's name.
 
 ```lua
 vim.g.quickllm_commands_defaults = {
-  ["complete"] = {
-      thinking = false, -- Disable reasoning for quick autocompletion
-      user_message_template = "Complete the following code: {{text_selection}}"
-  },
-  ["edit"] = {
-      thinking = true, -- Apply background reasoning only when running edit command
-  }
+    -- GLOBAL SETTINGS
+    system_message_template = "",
+    loading_message = "Generating...",
+
+    -- COMMAND OVERRIDES
+    complete = {
+        thinking = false, -- Disable thinking for instant code completion
+        temperature = 0.1, -- Low creativity for completions
+    },
+    edit = {
+        thinking = true, -- Apply background reasoning only when running edit command
+    },
+    explain = {
+        model = "claude-opus-4-7", -- Use a smarter model just for explanations
+        provider = "anthropic", -- Make sure to target the right API provider for the model
+    }
 }
 ```
 
-### Full list of overrides
+### Other Supported Overrides
 
-| name                    | default         | description                                                                                                                                                       |
-|-------------------------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| model                   | "gpt-5-nano" | The model to use.                                                                                                                                                    |
-| max_tokens              | 16384            | The maximum number of tokens to use including the prompt tokens.                                                                                                 |
-| temperature             | 0.2             | 0 -> 1, what sampling temperature to use.                                                                                                                         |
-| system_message_template | ""              | Helps set the behavior of the assistant.                                                                                                                          |
-| user_message_template   | ""              | Instructs the assistant.                                                                                                                                          |
-| callback_type           | "replace_lines" | Controls what the plugin does with the response                                                                                                                   |
-| loading_message         | "Generating..." | The message displayed in the spinner while waiting for a response.                                                                                                |
-| allow_empty_text_selection | false        | If true, the command can be run without a visual selection.                                                                                                       |
-| language_instructions   | {}              | A table of filetype => instructions. The current buffer's filetype is used in this lookup. This is useful trigger different instructions for different languages. |
-| extra_params            | {}              | A table of custom parameters to be sent to the API.                                                                                                               |
+| name | value | description |
+|------|---------|-------------|
+| `max_tokens` | 16384 | The maximum number of tokens to use including the prompt tokens. |
+| `system_message_template` | `""` | Behavioral instructions for the assistant. |
+| `user_message_template` | `""` | The primary prompt template. |
+| `callback_type` | `"text_popup"` | Controls UI behavior (`replace_lines`, `text_popup`, `code_popup`). |
+| `loading_message` | `"Generating..."` | Spinner text shown during requests. |
+| `allow_empty_text_selection` | `false` | If true, command runs without a visual selection. |
+| `language_instructions` | `{}` | Map of `filetype` -> specific instructions. |
+| `extra_params` | `{}` | Table of custom parameters for the API (e.g., `top_p`, `stop_sequences`). |
 
+---
 
 ### Configuring Providers and Models
 
-Define default models for each provider using `vim.g.quickllm_provider_defaults` and `vim.g.quickllm_search_model_defaults`.
+Define base models for each provider using `vim.g.quickllm_provider_defaults`. This is the fallback model if no global or command-specific model is set.
 
 ```lua
 vim.g.quickllm_provider_defaults = {
-    ollama = {
-        model = "deepseek-r1:7b",
+    ollama = { 
+        model = "qwen3:8b",
         thinking = true -- Enable reasoning for this provider
     },
     anthropic = { model = "claude-haiku-4-5" },
 }
 
+-- Search (grounding) command setup for different providers
 vim.g.quickllm_search_model_defaults = {
     local_grounding = { model = "gemma4" },
     gemini = { model = "gemini-3.5-flash" }
@@ -158,39 +169,30 @@ vim.g.quickllm_search_model_defaults = {
 vim.g.quickllm_show_thinking = true
 ```
 
-### Overriding Global Defaults
-
-Generic options (like temperature) can be set globally using `vim.g.quickllm_global_commands_defaults`.
-
-```lua
-vim.g.quickllm_global_commands_defaults = {
-    temperature = 0.4,
-    -- extra_params = { presence_penalty = 1 }
-}
-```
-
 ### Configuring Presets (:Chat1, :Chat2, :Chat3)
 
-Configure the preset commands (`:Chat1`, `:Chat2`, `:Chat3`) by appending numbers to the global variables. This is useful for mapping specific commands to different APIs or models without changing your default `:Chat` settings.
+Each preset has its own configuration scope. Append `1`, `2`, or `3` to the variables. This is perfect for mapping a preset to a completely different stack.
 
 ```lua
--- Configure :Chat1 to use Ollama with a specific model
+-- Configure :Chat1 to be your "Local Dev" preset
 vim.g.quickllm_api_provider1 = "ollama"
-vim.g.quickllm_search_provider1 = "local_grounding"
-vim.g.quickllm_global_commands_defaults1 = {
-    model = "deepseek-coder-v2"
+vim.g.quickllm_commands_defaults1 = {
+    model = "qwen3-coder",
+    thinking = true,
+    temperature = 0.2
 }
 ```
 
-### Configuration Merging Logic
+### Configuration Merge Logic (The Waterfall)
 
-The system uses a "Waterfall" merging logic to determine the final settings (like model, temperature, or thinking) for any given request. Settings are applied in the following order:
+When you run a command, QuickLLM determines the settings by merging tables in this order (highest priority from the top):
 
-1. **Hardcoded Defaults**: Base values defined in the code (lowest priority).
-2. **Provider Defaults**: Values defined in `vim.g.quickllm_provider_defaults`.
-3. **Preset-Specific Provider Defaults**: Values in `vim.g.quickllm_provider_defaults1`, `defaults2`, etc.
-4. **Global Overrides**: Values defined in `vim.g.quickllm_global_commands_defaults`.
-5. **Command-Specific Overrides**: Values defined in `vim.g.quickllm_commands` (highest priority).
+1.  **User Commands**: Custom logic in `vim.g.quickllm_commands[cmd]`.
+2.  **Command-Specific Override**: Nested table in `vim.g.quickllm_commands_defaults[cmd]`.
+3.  **Global Defaults**: Flat keys in `vim.g.quickllm_commands_defaults`.
+4.  **Global Provider Defaults**: `vim.g.quickllm_provider_defaults[provider]`.
+5.  **Preset Provider Defaults**: `vim.g.quickllm_provider_defaults1[provider]`.
+6.  **Hardcoded Defaults**: Base values defined in the plugin code.
 
 
 ### Optimizing Local Models (Ollama)
@@ -198,17 +200,14 @@ The system uses a "Waterfall" merging logic to determine the final settings (lik
 To get that "Quick" local models execution speed via Ollama, you may want to set an empty system prompt for better prompt caching. If you configured a custom one in your `Modelfile`, then be sure to disable it globally in the Ollama provider settings:
 
 ```lua
-vim.g.quickllm_provider_defaults = {
-  ollama = {
-    system_message_template = ""
-  }
-}
-
--- Also clear for the search command specifically
-vim.g.quickllm_commands = {
-  search = {
-    system_message_template = ""
-  }
+-- Optimize a preset (e.g., :Chat1) for super-fast local work
+vim.g.quickllm_api_provider1 = "ollama"
+vim.g.quickllm_commands_defaults1 = {
+    system_message_template = "", -- Empty system prompt for better caching
+    search = {
+        provider = "local_grounding",
+        system_message_template = "" -- Also clear for search
+    }
 }
 ```
 
@@ -231,7 +230,7 @@ Some commands have templates that use the `{{language_instructions}}` macro to a
 
 ```lua
 vim.g.quickllm_commands_defaults = {
-  ["complete"] = {
+  complete = {
       language_instructions = {
           cpp = "Use trailing return type.",
       },
@@ -248,7 +247,7 @@ Commands are normally a single value, for example `:Chat complete`. You can make
 
 ```lua
 vim.g.quickllm_commands = {
-  ["testwith"] = {
+  testwith = {
       user_message_template =
         "Write tests for the following code: ```{{filetype}}\n{{text_selection}}```\n{{command_args}} " ..
         "Only return the code snippet and nothing else."
@@ -265,7 +264,7 @@ Custom commands can be added to the `vim.g.quickllm_commands` configuration opti
 
 ```lua
 vim.g.quickllm_commands = {
-  ["modernize"] = {
+  modernize = {
       user_message_template = "I have the following {{language}} code: ```{{filetype}}\n{{text_selection}}```\nModernize the above code. Use current best practices. Only return the code snippet and comments. {{language_instructions}}",
       language_instructions = {
           cpp = "Refactor the code to use trailing return type, and the auto keyword where applicable.",
@@ -274,24 +273,6 @@ vim.g.quickllm_commands = {
 }
 ```
 The above configuration adds the command `:Chat modernize` that attempts modernize the selected code snippet.
-
-
-##  Command Defaults
-
-The base configuration for all commands is:
-
-```lua
-{
-    temperature = 0.2,
-    thinking = false,
-    system_message_template = "You are a {{language}} coding assistant.",
-    user_message_template = "",
-    callback_type = "replace_lines",
-    allow_empty_text_selection = false,
-    extra_params = {},
-}
-```
-
 
 ## More Configuration Options
 
@@ -363,6 +344,12 @@ let g:markdown_fenced_languages = ['python', 'javascript', 'lua', 'cpp']
 autocmd FileType markdown lua vim.treesitter.stop()
 ```
 
+When using reasoning models, you can set if popup will display the text or just show label "Thinking..."
+```lua
+-- Setting to true will show the thinking context in the popup
+vim.g.quickllm_show_thinking = true
+```
+
 #### Popup commands
 
 ```lua
@@ -397,6 +384,7 @@ vim.g.quickllm_popup_layout = {
 ```lua
 vim.g.quickllm_popup_style = "rounded"
 ```
+
 #### Popup window options
 
 ``` lua
@@ -426,7 +414,7 @@ For any command, you can override the callback type to move the completion to a 
 require("quickllm.config")
 
 vim.g.quickllm_commands = {
-  ["complete"] = {
+  complete = {
     callback_type = "code_popup",
   },
 }
@@ -516,13 +504,13 @@ require("quickllm.config")
 -- vim.g.quickllm_chat_completions_url = "http://127.0.0.1:800/test"
 
 vim.g.quickllm_commands = {
-  ["tests"] = {
+  tests = {
     -- Language specific instructions for java filetype
     language_instructions = {
         java = "Use the TestNG framework.",
     },
   },
-  ["doc"] = {
+  doc = {
     -- Language specific instructions for python filetype
     language_instructions = {
         python = "Use the Google style docstrings."
@@ -531,7 +519,7 @@ vim.g.quickllm_commands = {
     -- Overrides the max tokens to be 1024
     max_tokens = 1024,
   },
-  ["edit"] = {
+  edit = {
     -- Overrides the system message template
     system_message_template = "You are {{language}} developer.",
 
@@ -542,7 +530,7 @@ vim.g.quickllm_commands = {
     callback_type = "code_popup",
   },
   -- Custom command
-  ["modernize"] = {
+  modernize = {
     user_message_template = "I have the following {{language}} code: ```{{filetype}}\n{{text_selection}}```\nModernize the above code. Use current best practices. Only return the code snippet and comments. {{language_instructions}}",
     language_instructions = {
         cpp = "Use modern C++ syntax. Use auto where possible. Do not import std. Use trailing return type. Use the c++11, c++14, c++17, and c++20 standards where applicable.",

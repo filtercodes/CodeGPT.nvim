@@ -42,7 +42,7 @@ function QuickllmModule.run_cmd(opts)
         return -- Stop all further processing
     end
 
-    local is_recall = command == "recall" or command == "last"
+    local is_recall = command == "recall"
     local is_recall_action = false
     local recall_offset = 1
     
@@ -71,13 +71,13 @@ function QuickllmModule.run_cmd(opts)
         return
     end
 
-    local is_rewind = command == "rewind" or command == "undo"
-    if is_rewind and #opts.fargs == 1 then
+    local is_undo = command == "undo"
+    if is_undo and #opts.fargs == 1 then
         local success = History.undo_last_exchange(bufnr)
         if success then
             vim.notify("Last conversation exchange removed from history.", vim.log.levels.INFO, { title = "QuickLLM" })
         else
-            vim.notify("No history to rewind.", vim.log.levels.WARN, { title = "QuickLLM" })
+            vim.notify("No history to undo.", vim.log.levels.WARN, { title = "QuickLLM" })
         end
         return
     end
@@ -119,7 +119,7 @@ function QuickllmModule.run_cmd(opts)
 
     -- If special commands were used with arguments, we want them to fall through to chat/code_edit guessing logic
     -- and prevent them from fetching default options.
-    if not ((command == "clear" or is_recall or is_rewind) and #opts.fargs > 1) then
+    if not ((command == "clear" or is_recall or is_undo) and #opts.fargs > 1) then
         cmd_opts = CommandsList.get_cmd_opts(command, overrides)
     end
 

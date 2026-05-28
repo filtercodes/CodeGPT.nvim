@@ -44,8 +44,8 @@ vim.g.quickllm_search_model_defaults = vim.tbl_extend("force", {
 for i = 1, 3 do
     local provider_key = "quickllm_api_provider" .. i
     local search_key = "quickllm_search_provider" .. i
-    local defaults_key = "quickllm_global_commands_defaults" .. i
-    
+    local defaults_key = "quickllm_commands_defaults" .. i
+
     vim.g[provider_key] = vim.g[provider_key] or vim.g.quickllm_api_provider
     vim.g[search_key] = vim.g[search_key] or "gemini"
     vim.g[defaults_key] = vim.g[defaults_key] or nil
@@ -195,12 +195,6 @@ vim.g.quickllm_commands_defaults = {
         allow_empty_text_selection = true,
     },
     ["recall"] = {
-        allow_empty_text_selection = true,
-    },
-    ["last"] = {
-        allow_empty_text_selection = true,
-    },
-    ["rewind"] = {
         allow_empty_text_selection = true,
     },
     ["undo"] = {

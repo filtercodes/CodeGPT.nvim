@@ -34,10 +34,14 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
 
   local start_row, start_col, end_row, end_col = Utils.get_visual_selection()
 
-  -- Resolve Provider using overrides
-  local effective_overrides = overrides
+  -- Resolve Provider using the merged options
+  local effective_overrides = overrides or {}
+  if cmd_opts.provider and not effective_overrides.provider then
+      effective_overrides.provider = cmd_opts.provider
+  end
+
   if cmd_opts.is_search_command and not (effective_overrides and effective_overrides.search_provider) then
-      effective_overrides = vim.tbl_extend("force", effective_overrides or {}, {
+      effective_overrides = vim.tbl_extend("force", effective_overrides, {
           search_provider = vim.g.quickllm_search_provider or "gemini"
       })
   end

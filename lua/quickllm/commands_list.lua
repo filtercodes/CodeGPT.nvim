@@ -7,7 +7,7 @@ local cmd_default = {
     number_of_choices = 1,
     system_message_template = "You are a {{language}} coding assistant.",
     user_message_template = "",
-    callback_type = "replace_lines",
+    callback_type = "text_popup",
     allow_empty_text_selection = false,
     extra_params = {}, -- extra parameters sent to the API
 }
@@ -63,36 +63,64 @@ function CommandsList.get_cmd_opts(cmd, overrides)
         end
     end
 
-    -- Merge the user's generic global defaults (base or preset-specific)
-    -- We do NOT want the global 'model' to overwrite the provider-specific model we just loaded,
-    -- unless the user is intentionally overriding it for the generic default provider.
-    local global_defaults_key = "quickllm_global_commands_defaults" .. preset_suffix
-    if vim.g[global_defaults_key] ~= nil then
-        local global_defaults = vim.deepcopy(vim.g[global_defaults_key])
+    -- 1. Merge Base Unified Defaults (The global templates and settings)
+    local base_defaults = vim.g.quickllm_commands_defaults
+    if base_defaults and type(base_defaults) == "table" then
+        local config_table = vim.deepcopy(base_defaults)
         
-        -- If an explicit provider was requested (e.g., :Gemini), strip the generic global model
-        -- because we already applied the provider's specific model above.
-        if overrides and (overrides.provider or overrides.search_provider) then
-             global_defaults.model = nil
-             global_defaults.search_model = nil
+        -- Apply Flat Keys (Base Global)
+        local flat_keys = {}
+        for k, v in pairs(config_table) do
+            if type(v) ~= "table" then flat_keys[k] = v end
         end
+        opts = vim.tbl_extend("force", opts, flat_keys)
 
-        opts = vim.tbl_extend("force", opts, global_defaults)
+        -- Apply Base Command Overrides (The templates like 'chat', 'explain', etc.)
+        local cmd_overrides = config_table[cmd]
+        if cmd_overrides and type(cmd_overrides) == "table" then
+            opts = vim.tbl_extend("force", opts, cmd_overrides)
+        end
     end
 
-    -- Get settings from default commands and user-defined commands
-    local default_cmd_opts = vim.g.quickllm_commands_defaults[cmd]
+    -- 2. Merge Preset-Specific Unified Defaults (Overrides for this specific preset)
+    if preset_suffix ~= "" then
+        local preset_defaults = vim.g["quickllm_commands_defaults" .. preset_suffix]
+        if preset_defaults and type(preset_defaults) == "table" then
+            local config_table = vim.deepcopy(preset_defaults)
+
+            -- Apply Flat Keys (Preset Global)
+            local flat_keys = {}
+            for k, v in pairs(config_table) do
+                if type(v) ~= "table" then flat_keys[k] = v end
+            end
+
+            -- If an explicit provider was requested via command (:Gemini), strip the preset's global model
+            if (overrides and (overrides.provider or overrides.search_provider)) then
+                 flat_keys.model = nil
+                 flat_keys.search_model = nil
+            end
+
+            opts = vim.tbl_extend("force", opts, flat_keys)
+
+            -- Apply Preset Command Overrides
+            local cmd_overrides = config_table[cmd]
+            if cmd_overrides and type(cmd_overrides) == "table" then
+                -- Handle Per-Command Provider Overrides in the preset
+                if cmd_overrides.provider and not (overrides and overrides.provider) then
+                    provider_name = string.lower(cmd_overrides.provider)
+                    local new_provider_defaults = (vim.g.quickllm_provider_defaults or {})[provider_name] or {}
+                    opts = vim.tbl_extend("force", opts, new_provider_defaults)
+                end
+                opts = vim.tbl_extend("force", opts, cmd_overrides)
+            end
+        end
+    end
+
+    -- Add the resolved provider name to the opts so the caller knows which one to use
+    opts.provider = provider_name
+
+    -- Merge user-defined commands (extra flexibility)
     local user_cmd_opts = (vim.g.quickllm_commands or {})[cmd]
-
-    -- A command must exist in one of the tables
-    if default_cmd_opts == nil and user_cmd_opts == nil then
-        return nil
-    end
-
-    -- Merge settings, with user settings taking precedence
-    if default_cmd_opts ~= nil then
-        opts = vim.tbl_extend("force", opts, default_cmd_opts)
-    end
     if user_cmd_opts ~= nil then
         opts = vim.tbl_extend("force", opts, user_cmd_opts)
     end
@@ -131,7 +159,7 @@ function CommandsList.get_cmd_opts(cmd, overrides)
         vim.notify(
             "QuickLLM.vim: Model not configured for command '"
                 .. cmd
-                .. "'. Please set it in vim.g.quickllm_commands or vim.g.quickllm_global_commands_defaults",
+                .. "'. Please set it in vim.g.quickllm_commands or vim.g.quickllm_commands_defaults",
             vim.log.levels.ERROR
         )
         return nil
