@@ -189,4 +189,9 @@ function QuickllmModule.clear()
     return QuickllmModule.run_cmd({ fargs = { "clear" }, name = "Chat" })
 end
 
+function QuickllmModule.adjust_popup_size(delta_w, delta_h)
+    Utils.adjust_popup_size(delta_w, delta_h)
+    return Ui.refresh_active_popup()
+end
+
 return QuickllmModule

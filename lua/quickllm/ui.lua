@@ -224,19 +224,21 @@ function Ui.sync_window_size(ui_bufnr)
         end
     end
 
-    local new_h = math.min(visual_height, info.max_h)
+    local target_h = math.min(visual_height, info.max_h)
+    local target_w = info.max_w
 
-    if new_h ~= info.current_h then
+    if target_h ~= info.current_h or target_w ~= info.current_w then
         -- Calculate the "Start Row" for this specific height so it's centered
         -- relative to the SAME midpoint as the max-height window.
         local midpoint = info.max_row + (info.max_h / 2)
-        local centered_row = math.floor(midpoint - (new_h / 2))
+        local centered_row = math.floor(midpoint - (target_h / 2))
 
         info.ui_elem:update_layout({
-            size = { height = new_h, width = info.max_w },
+            size = { height = target_h, width = target_w },
             position = { row = centered_row, col = info.col }
         })
-        info.current_h = new_h
+        info.current_h = target_h
+        info.current_w = target_w
     end
 
     -- Return the height information to help the caller decide on scrolling strategy
@@ -521,6 +523,52 @@ function Ui.popup(lines, filetype, bufnr, start_row, start_col, end_row, end_col
         local winid = vim.fn.bufwinid(ui_elem.bufnr)
         if winid ~= -1 then
             pcall(vim.api.nvim_win_set_cursor, winid, cursor_pos)
+        end
+    end
+end
+
+---Recalculates and applies layout constraints to the currently active popup.
+---This is used for live-resizing based on global configuration changes.
+function Ui.refresh_active_popup()
+    -- Only applies if we are using the 'popup' type
+    if vim.g.quickllm_popup_type ~= "popup" then return end
+
+    for bufnr, info in pairs(active_popups) do
+        if info.ui_elem and vim.api.nvim_buf_is_valid(bufnr) then
+            -- Re-calculate constraints using the same logic as create_popup
+            local options = vim.g.quickllm_popup_layout or {
+                relative = "editor",
+                position = "50%",
+                size = { width = "80%", height = "60%" }
+            }
+
+            local lines = vim.o.lines
+            local columns = vim.o.columns
+            local statusline_h = (vim.o.laststatus > 0) and 1 or 0
+            local tabline_h = (vim.o.showtabline == 2 or (vim.o.showtabline == 1 and #vim.api.nvim_list_tabpages() > 1)) and 1 or 0
+            local cmdline_h = vim.o.cmdheight
+            local usable_h = math.max(1, lines - statusline_h - tabline_h - cmdline_h - 2)
+
+            local function parse_dim(val, total)
+                if type(val) == "string" and val:match("%%$") then
+                    return math.floor(total * (tonumber(val:sub(1, -2)) / 100))
+                end
+                return tonumber(val) or val
+            end
+
+            local max_w = parse_dim(options.size and options.size.width or "80%", columns)
+            local max_h = parse_dim(options.size and options.size.height or "60%", usable_h)
+            local max_row = math.floor((usable_h - max_h) / 2) + tabline_h
+            local col = math.floor((columns - max_w) / 2)
+
+            -- Update the info object so sync_window_size uses new constraints
+            info.max_h = max_h
+            info.max_row = max_row
+            info.max_w = max_w
+            info.col = col
+
+            -- Immediately sync the window size
+            Ui.sync_window_size(bufnr)
         end
     end
 end

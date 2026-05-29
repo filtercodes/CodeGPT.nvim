@@ -1,6 +1,6 @@
 # QuickLLM.nvim
 
-QuickLLM is a quick way to access LLM - directly from your terminal through the Neovim editor. Simply run `command + prompt` and the response will open in a popup window. It also includes additional commands for code completion, refactoring, generating documentation, and more — with a strong focus on coding workflows and extensive configurability.
+QuickLLM is a quick way to access LLM - directly via the Neovim editor. Simply run `command + prompt` and the response will open in a popup window. It is highly configurable and includes additional commands for code completion, refactoring, generating documentation, and more — with a strong focus on coding workflows.
 
 ## Installation
 
@@ -227,15 +227,14 @@ Quickly walk through previous assistant responses using keyboard shortcuts.
 ```lua
 local qllm = require("quickllm")
 
+-- Walk backward/forward through previous messages
+vim.keymap.set("n", "<leader>qw", function() qllm.recall("backward") end)
+vim.keymap.set("n", "<leader>qf", function() qllm.recall("forward") end)
+
 -- Map keys 1-9 to jump to specific history items (e.g., <leader>q1 is last, q2 is one before, etc.)
--- You can increase the range to 20 or more if needed.
 for i = 1, 9 do
     vim.keymap.set("n", "<leader>q" .. i, function() qllm.recall(i) end)
 end
-
--- Walk backward/forward through history
-vim.keymap.set("n", "<leader>qw", function() qllm.recall("backward") end)
-vim.keymap.set("n", "<leader>qf", function() qllm.recall("forward") end)
 
 -- Other history actions
 vim.keymap.set("n", "<leader>qu", function() qllm.undo() end)
@@ -322,7 +321,7 @@ vim.g.quickllm_commands = {
 After defining this command, any `:Chat` command that has `testwith` as its first argument will be handled. For example, `:Chat testwith some additional instructions` will be interpreted as `testwith` with `"some additional instructions"`.
 
 
-## Custom Commands
+### Custom Commands
 
 Custom commands can be added to the `vim.g.quickllm_commands` configuration option to extend the available commands.
 
@@ -357,7 +356,7 @@ vim.g.quickllm_hooks = {
 
 ### Lualine Status Component
 
-There is a convenience function `get_status` so that you can add a status component to lualine. This function provides an animated progress spinner while a request is running, followed by the name of the last command and the active LLM model (e.g., `⠋ chat  🤖 qwen3.6:27b`).
+There is a convenience function `get_status` to add a status component to lualine. This function provides an animated progress spinner while a request is running, followed by the name of the last command and the active LLM model (e.g., `⠋ chat  🤖 qwen3.6:27b`).
 
 ```lua
 local QuickllmModule = require("quickllm")
@@ -408,7 +407,7 @@ let g:markdown_fenced_languages = ['python', 'javascript', 'lua', 'cpp']
 autocmd FileType markdown lua vim.treesitter.stop()
 ```
 
-When using reasoning models, you can set if popup will display the text or just show label "Thinking..."
+When using reasoning models, `quickllm_show_thinking` configures popup to either display the thinking context or just show the label "Thinking..." instead.
 ```lua
 -- Setting to true will show the thinking context in the popup
 vim.g.quickllm_show_thinking = true
@@ -441,6 +440,20 @@ vim.g.quickllm_popup_layout = {
     height = "80%"
   }
 }
+```
+
+### Dynamic Popup Resizing
+
+To dynamically adjust the size of the popup set custom keymaps and it will setup max size setting for the session. This might be useful for expanding the window when reading long code or shrinking it to see better the conent of the window below it. 
+
+The following example maps `<leader>q` + Arrow Keys to increase/decrease the dimensions by 10% increments.
+
+```lua
+-- Increase/Decrease popup dimensions on the fly
+vim.keymap.set("n", "<leader>q<Up>",    function() require("quickllm").adjust_popup_size(0, 10)   end)
+vim.keymap.set("n", "<leader>q<Down>",  function() require("quickllm").adjust_popup_size(0, -10)  end)
+vim.keymap.set("n", "<leader>q<Left>",  function() require("quickllm").adjust_popup_size(10, 0)   end)
+vim.keymap.set("n", "<leader>q<Right>", function() require("quickllm").adjust_popup_size(-10, 0)  end)
 ```
 
 ### Popup border style
@@ -496,8 +509,8 @@ vim.g.quickllm_popup_type = "horizontal"
 To set the height of the horizontal window or the width of the vertical popup, you can use `quickllm_horizontal_popup_size` and `quickllm_vertical_popup_size` variables.
 
 ```lua
-vim.g.quickllm_horizontal_popup_size = "20%"
-vim.g.quickllm_vertical_popup_size = "20%"
+vim.g.quickllm_horizontal_popup_size = "40%"
+vim.g.quickllm_vertical_popup_size = "40%"
 ```
 
 ## Callback Types
@@ -520,54 +533,4 @@ Callback types control what to do with the response
 | text_selection |  Any selected text. |
 | command_args | Command arguments. |
 | filetype_instructions | filetype specific instructions. |
-
-
-## Example Configuration
-
-Note that QuickLLM should work without any configuration.
-This is an example configuration that shows some of the options available:
-
-```lua
-
-require("quickllm.config")
-
--- Override the default chat completions url, this is useful to override when testing custom commands
--- vim.g.quickllm_chat_completions_url = "http://127.0.0.1:800/test"
-
-vim.g.quickllm_commands = {
-  tests = {
-    -- Language specific instructions for java filetype
-    language_instructions = {
-        java = "Use the TestNG framework.",
-    },
-  },
-  doc = {
-    -- Language specific instructions for python filetype
-    language_instructions = {
-        python = "Use the Google style docstrings."
-    },
-
-    -- Overrides the max tokens to be 1024
-    max_tokens = 1024,
-  },
-  edit = {
-    -- Overrides the system message template
-    system_message_template = "You are {{language}} developer.",
-
-    -- Overrides the user message template
-    user_message_template = "I have the following {{language}} code: ```{{filetype}}\n{{text_selection}}```\nEdit the above code. {{language_instructions}}",
-
-    -- Display the response in a popup window. The popup window filetype will be the filetype of the current buffer.
-    callback_type = "code_popup",
-  },
-  -- Custom command
-  modernize = {
-    user_message_template = "I have the following {{language}} code: ```{{filetype}}\n{{text_selection}}```\nModernize the above code. Use current best practices. Only return the code snippet and comments. {{language_instructions}}",
-    language_instructions = {
-        cpp = "Use modern C++ syntax. Use auto where possible. Do not import std. Use trailing return type. Use the c++11, c++14, c++17, and c++20 standards where applicable.",
-    },
-  }
-}
-
-```
 
