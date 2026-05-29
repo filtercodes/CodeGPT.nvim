@@ -1,6 +1,6 @@
 # QuickLLM.nvim
 
-QuickLLM is a quick way to access LLM - directly via the Neovim editor. Simply run `command + prompt` and the response will open in a popup window. It is highly configurable and includes additional commands for code completion, refactoring, generating documentation, and more — with a strong focus on coding workflows.
+QuickLLM provides a fast way to access LLMs directly within the Neovim editor. Running an editor command followed by a prompt opens the response in a popup window. The plugin is highly configurable and includes additional commands for code completion, refactoring, documentation generation, and more, with a strong focus on coding workflows.
 
 ## Installation
 

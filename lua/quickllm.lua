@@ -190,7 +190,8 @@ function QuickllmModule.clear()
 end
 
 function QuickllmModule.adjust_popup_size(delta_w, delta_h)
-    Utils.adjust_popup_size(delta_w, delta_h)
+    local Window = require("quickllm.window")
+    Window.update_global_layout(delta_w, delta_h)
     return Ui.refresh_active_popup()
 end
 

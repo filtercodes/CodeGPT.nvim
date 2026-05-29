@@ -135,38 +135,4 @@ function Utils.remove_trailing_whitespace(lines)
 end
 
 
-function Utils.adjust_popup_size(delta_w, delta_h)
-    local layout = vim.deepcopy(vim.g.quickllm_popup_layout or {
-        relative = "editor",
-        position = "50%",
-        size = { width = "80%", height = "60%" }
-    })
-
-    -- Ensure size table exists
-    layout.size = layout.size or { width = "80%", height = "60%" }
-
-    -- Helper to extract number from "80%" or 80
-    local function to_num(val, default)
-        if type(val) == "string" then
-            return tonumber(val:match("%d+")) or default
-        end
-        return tonumber(val) or default
-    end
-
-    local w = to_num(layout.size.width, 80)
-    local h = to_num(layout.size.height, 60)
-
-    -- Calculate and clamp (10% to 100%)
-    local new_w = math.max(10, math.min(100, w + (delta_w or 0)))
-    local new_h = math.max(10, math.min(100, h + (delta_h or 0)))
-
-    -- Apply new values back as strings
-    layout.size.width = new_w .. "%"
-    layout.size.height = new_h .. "%"
-    
-    vim.g.quickllm_popup_layout = layout
-    vim.notify(string.format("QuickLLM Window Size: %d%% x %d%%", new_w, new_h), vim.log.levels.INFO, { title = "QuickLLM" })
-end
-
-
 return Utils
