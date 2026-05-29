@@ -1,6 +1,6 @@
 # QuickLLM.nvim
 
-QuickLLM is a quick way to access LLM - directly from your terminal through the Neovim editor. Simply run `command + prompt` and the response will open in a popup window. It also includes additional commands for code completion, refactoring, generating documentation, and more — with a strong focus on coding workflows.
+QuickLLM is a quick way to access LLM - directly from your terminal through the Neovim editor. Simply run `command + prompt` and the response will open in a popup window. It also includes additional commands for code completion, refactoring, generating documentation, and more — with a strong focus on coding workflows and extensive configurability.
 
 ## Installation
 
@@ -22,7 +22,7 @@ Installing with [lazy.nvim](https://github.com/folke/lazy.nvim).
       vim.g.quickllm_provider_defaults = {
           ollama = { model = "gemma4" }
       }
-      -- Add other commands (explained further in this readme file)
+      -- Add other commands (explained below)
    end
 }
 ```
@@ -194,10 +194,74 @@ When you run a command, QuickLLM determines the settings by merging tables in th
 5.  **Preset Provider Defaults**: `vim.g.quickllm_provider_defaults1[provider]`.
 6.  **Hardcoded Defaults**: Base values defined in the plugin code.
 
+### Chat History (short-term memory)
+
+QuickLLM manages history automatically. You can tune its behavior using the `vim.g.quickllm_history_opts` table.
+
+| option | default | description |
+|--------|---------|-------------|
+| `max_messages` | `50` | Total messages to retain before summarizing older ones. |
+| `time_based_expiry` | `false` | If `true`, history automatically clears after the `timeout`. |
+| `timeout` | `1800` | Inactivity window (in seconds) before history expires (if `time_based_expiry` set to `true`). |
+| `summarize_history` | `true` | If `true`, compresses the first half of the buffer into a summary when `max_messages` is reached. |
+| `summarize_model` | *(Global)* | The model to use for background summarization. |
+| `summarize_provider` | *(Global)* | The provider to use for background summarization. |
+
+Example configuration (`init.lua`):
+
+```lua
+-- Modern history setup with background summarization
+vim.g.quickllm_history_opts = {
+    max_messages = 50,
+    time_based_expiry = false,
+    summarize_history = true,
+    summarize_provider = "openai",
+    summarize_model = "gpt-4o-mini" -- Use a cheap model for background work
+}
+```
+
+#### Chat History Navigation
+
+Quickly walk through previous assistant responses using keyboard shortcuts.
+
+```lua
+local qllm = require("quickllm")
+
+-- Map keys 1-9 to jump to specific history items (e.g., <leader>q1 is last, q2 is one before, etc.)
+-- You can increase the range to 20 or more if needed.
+for i = 1, 9 do
+    vim.keymap.set("n", "<leader>q" .. i, function() qllm.recall(i) end)
+end
+
+-- Walk backward/forward through history
+vim.keymap.set("n", "<leader>qw", function() qllm.recall("backward") end)
+vim.keymap.set("n", "<leader>qf", function() qllm.recall("forward") end)
+
+-- Other history actions
+vim.keymap.set("n", "<leader>qu", function() qllm.undo() end)
+vim.keymap.set("n", "<leader>qc", function() qllm.clear() end)
+```
+
+### Search (grounding) configuration
+
+`vim.g.quickllm_search_provider` - Defines which provider to use for the `:Chat search` command. Current supported options are `"gemini"`, `"openai"`, `"anthropic"` and `"local_grounding"`. Defaults to `"gemini"`.
+
+`vim.g.quickllm_show_search_sources` - Boolean (Default: `true`). Allows you to see the links/citations used by the LLM during a search displayed in the popup UI. If you are using a smaller model you can set it to `false` to deal with strict context limits.
+
+`vim.g.quickllm_ground_with_history` - Boolean (Default: `false`). If you want to send previous conversation history to the grounding model set it to `true`. This might be useful for model to pick up more info about the search term from the context, but also conversation history might confuse smaller models or create biased grounding.
+
+```lua
+vim.g.quickllm_search_provider = "anthropic"
+vim.g.quickllm_show_search_sources = true
+vim.g.quickllm_ground_with_history = false
+```
+
+Note that `"local_grounding"` requires `TAVILY_API_KEY` as an enviroment variable. Local Ollama model uses internet search results from [Tavily](https://app.tavily.com/home) to construct a grounded answer.
+
 
 ### Optimizing Local Models (Ollama)
 
-To get that "Quick" local models execution speed via Ollama, you may want to set an empty system prompt for better prompt caching. If you configured a custom one in your `Modelfile`, then be sure to disable it globally in the Ollama provider settings:
+To get that "Quick" inference speed with local models via Ollama, you may want to set an empty system prompt for better prompt caching. If you configured a custom one in your `Modelfile`, then be sure to disable it globally in the Ollama provider settings:
 
 ```lua
 -- Optimize a preset (e.g., :Chat1) for super-fast local work
@@ -211,7 +275,7 @@ vim.g.quickllm_commands_defaults1 = {
 }
 ```
 
-#### Templates
+### Templates
 
 The `system_message_template` and the `user_message_template` can contain template macros. For example:
 
@@ -224,7 +288,7 @@ The `system_message_template` and the `user_message_template` can contain templa
 | `{{language_instructions}}` | The found value in the `language_instructions` map. See below. |
 
 
-#### Language Instructions
+### Language Instructions
 
 Some commands have templates that use the `{{language_instructions}}` macro to allow for additional instructions for specific [filetypes](https://neovim.io/doc/user/filetype.html).
 
@@ -241,7 +305,7 @@ vim.g.quickllm_commands_defaults = {
 The above adds a specific `Use trailing return type.` to the command `complete` for the filetype `cpp`.
 
 
-#### Command Args
+### Command Args
 
 Commands are normally a single value, for example `:Chat complete`. You can make commands accept additional arguments by using the `{{command_args}}` macro anywhere in either `user_message_template` or `system_message_template`. For example:
 
@@ -326,9 +390,9 @@ Alternativelly if you don't use `lualine` vim.notify print will tell you which m
 vim.g.quickllm_print_model = false
 ```
 
-### Popup options
+## Popup options
 
-#### Popup commands
+### Popup commands
 
 The default filetype of the text popup window is markdown. You can change this by setting the `quickllm_text_popup_filetype` variable.
 
@@ -350,7 +414,7 @@ When using reasoning models, you can set if popup will display the text or just 
 vim.g.quickllm_show_thinking = true
 ```
 
-#### Popup commands
+### Popup commands
 
 ```lua
 vim.g.quickllm_ui_commands = {
@@ -365,7 +429,7 @@ vim.g.quickllm_ui_commands = {
 }
 ```
 
-#### Popup layouts
+### Popup layouts
 
 ```lua
 vim.g.quickllm_popup_layout = {
@@ -379,15 +443,15 @@ vim.g.quickllm_popup_layout = {
 }
 ```
 
-#### Popup border style
+### Popup border style
 
 ```lua
 vim.g.quickllm_popup_style = "rounded"
 ```
 
-#### Popup window options
+### Popup window options
 
-``` lua
+```lua
 -- Enable text wrapping and line numbers
 vim.g.quickllm_popup_window_options = {
   wrap = true,
@@ -397,16 +461,16 @@ vim.g.quickllm_popup_window_options = {
 }
 ```
 
-#### Popup window color setup
+### Popup window color setup
 
 An example of custom dark mode in vimscript.
 
-``` vim
+```vim
 highlight NormalFloat guibg=#2f2f2f ctermbg=235
 highlight FloatBorder guifg=#8ec07c ctermfg=108
 ```
 
-#### Move completion to popup window
+### Move completion to popup window
 
 For any command, you can override the callback type to move the completion to a popup window. An example below is for overriding the `complete` command.
 
@@ -420,7 +484,7 @@ vim.g.quickllm_commands = {
 }
 ```
 
-#### Horizontal or vertical split window
+### Horizontal or vertical split window
 
 If you prefer a horizontal or vertical split window, you can change the popup type to `horizontal` or `vertical`.
 
@@ -435,39 +499,6 @@ To set the height of the horizontal window or the width of the vertical popup, y
 vim.g.quickllm_horizontal_popup_size = "20%"
 vim.g.quickllm_vertical_popup_size = "20%"
 ```
-
-### History (short-term memory) configuration
-
-`vim.g.quickllm_chat_history_timeout` - Defines the maximum idle time in seconds before a conversation's history is considered "stale" and is automatically reset.
-
-`vim.g.quickllm_chat_history_time_based_expiry`: Boolean (Default: `true`). - Allows disabiling history_timeout so that memory is preserved until nvim restart.
-
-`vim.g.quickllm_chat_history_max_messages` - Sets a "sliding window" to limit the total number of messages (user + assistant) kept in memory for a conversation. This prevents the context from growing too large. Once the max_messages is reached, older messages are summarised to keep the context small.
-
-These can be configured globally (`init.lua` or `plugins.lua`):
-
-```lua
--- To set custom values
-vim.g.quickllm_chat_history_timeout = 900   -- 15 minutes
-vim.g.quickllm_chat_history_max_messages = 20 -- 20 messages total
-vim.g.quickllm_chat_history_time_based_expiry = true
-```
-
-### Search (grounding) configuration
-
-`vim.g.quickllm_search_provider` - Defines which provider to use for the `:Chat search` command. Current supported options are `"gemini"`, `"openai"`, `"anthropic"` and `"local_grounding"`. Defaults to `"gemini"`.
-
-`vim.g.quickllm_show_search_sources` - Boolean (Default: `true`). Allows you to see the links/citations used by the LLM during a search displayed in the popup UI. If you are using a smaller model you can set it to `false` to deal with strict context limits.
-
-`vim.g.quickllm_ground_with_history` - Boolean (Default: `false`). If you want to send previous conversation history to the grounding model set it to `true`. This might be useful for model to pick up more info about the search term from the context, but also conversation history might confuse smaller models or create biased grounding.
-
-```lua
-vim.g.quickllm_search_provider = "anthropic"
-vim.g.quickllm_show_search_sources = true
-vim.g.quickllm_ground_with_history = false
-```
-
-Note that `"local_grounding"` requires `TAVILY_API_KEY` as an enviroment variable. Local Ollama model uses internet search results from [Tavily](https://app.tavily.com/home) to construct a grounded answer.
 
 ## Callback Types
 
@@ -491,12 +522,12 @@ Callback types control what to do with the response
 | filetype_instructions | filetype specific instructions. |
 
 
-# Example Configuration
+## Example Configuration
 
 Note that QuickLLM should work without any configuration.
 This is an example configuration that shows some of the options available:
 
-``` lua
+```lua
 
 require("quickllm.config")
 
@@ -540,7 +571,3 @@ vim.g.quickllm_commands = {
 
 ```
 
-# Goals
-* Code related usages.
-* Simple.
-* Easy to add custom commands.

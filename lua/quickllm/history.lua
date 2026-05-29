@@ -50,16 +50,23 @@ function M.add_message(bufnr, role, content, model, command)
     }
     table.insert(history[bufnr], message)
 
-    local max_messages = vim.g.quickllm_chat_history_max_messages or 20
+    local opts = vim.g.quickllm_history_opts or {}
+    local max_messages = opts.max_messages or 50
+    local summarize_enabled = opts.summarize_history ~= false
 
-    -- Check if we need to summarize
+    -- Check if we need to manage history size
     if #history[bufnr] > max_messages then
-        if not is_summarizing[bufnr] then
-            M.summarize_history(bufnr)
+        if summarize_enabled then
+            if not is_summarizing[bufnr] then
+                M.summarize_history(bufnr)
+            end
+        else
+            -- Sliding window: remove oldest message to make room
+            table.remove(history[bufnr], 1)
         end
 
         -- Safety cap: If summarization is slow/failing, don't let history grow indefinitely.
-        -- Keep a buffer of roughly 2x the max before hard deleting.
+        -- Keep a buffer of roughly 2x the max before hard deleting oldest.
         if #history[bufnr] > (max_messages * 2) then
             table.remove(history[bufnr], 1)
         end
@@ -76,13 +83,11 @@ function M.get_messages(bufnr)
         return {}
     end
 
-    local time_based_expiry = true
-    if vim.g.quickllm_chat_history_time_based_expiry ~= nil then
-        time_based_expiry = vim.g.quickllm_chat_history_time_based_expiry
-    end
+    local opts = vim.g.quickllm_history_opts or {}
+    local time_based_expiry = opts.time_based_expiry or false
 
     local current_time = os.time()
-    local timeout = vim.g.quickllm_chat_history_timeout or 900
+    local timeout = opts.timeout or 900
     
     local valid_history = {}
     local expired_count = 0
@@ -129,11 +134,11 @@ end
 ---Retrieves a previous assistant response from the buffer's history.
 ---@param bufnr number: The buffer number.
 ---@param offset number|nil: 1-based index from the end (default 1).
----@return string|nil, string|nil, string|nil: content, model, command
+---@return string|nil, string|nil, string|nil, table|nil, string|nil: content, model, command, cursor_pos, question
 function M.get_last_response(bufnr, offset)
     local buf_history = history[bufnr]
     if not buf_history or #buf_history == 0 then
-        return nil, nil, nil
+        return nil, nil, nil, nil, nil
     end
     
     local target = offset or 1
@@ -145,11 +150,36 @@ function M.get_last_response(bufnr, offset)
             count = count + 1
             if count == target then
                 local msg = buf_history[i]
-                return msg.content, msg.model, msg.command
+                local question = nil
+                -- The question is the message immediately preceding the answer
+                if i > 1 and buf_history[i-1].role == "user" then
+                    question = buf_history[i-1].content
+                end
+                return msg.content, msg.model, msg.command, msg.cursor_pos, question
             end
         end
     end
-    return nil, nil, nil
+    return nil, nil, nil, nil, nil
+end
+
+---Updates the cursor position for a specific assistant response in history.
+---@param bufnr number
+---@param offset number
+---@param cursor_pos table {row, col}
+function M.save_cursor_pos(bufnr, offset, cursor_pos)
+    local buf_history = history[bufnr]
+    if not buf_history then return end
+
+    local count = 0
+    for i = #buf_history, 1, -1 do
+        if buf_history[i].role == "assistant" then
+            count = count + 1
+            if count == offset then
+                buf_history[i].cursor_pos = cursor_pos
+                return
+            end
+        end
+    end
 end
 
 ---Removes the last exchange (assistant response + user prompt) from the history.
@@ -181,49 +211,55 @@ end
 ---@param summary_text string
 function M.apply_summary(bufnr, summary_text)
     local msgs = history[bufnr]
-    if not msgs or #msgs < 10 then return end
+    local opts = vim.g.quickllm_history_opts or {}
+    local max_messages = opts.max_messages or 50
+    local half = math.floor(max_messages / 2)
+
+    if not msgs or #msgs < half then return end
     
-    -- This ensures the summary expires when that block would have expired.
-    local tenth_msg = msgs[10]
+    -- Use metadata from the message at the cutoff point
+    local marker_msg = msgs[half]
     
     local summary_msg = {
         role = "system", -- System role implies context/instruction
         content = "Summary of previous conversation:\n" .. summary_text,
-        timestamp = tenth_msg.timestamp,
+        timestamp = marker_msg.timestamp,
         is_summary = true,
-        model = tenth_msg.model,
-        command = tenth_msg.command
+        model = marker_msg.model,
+        command = marker_msg.command
     }
     
-    -- Remove the first 10 messages
-    for _ = 1, 10 do
+    -- Remove the first half of messages
+    for _ = 1, half do
         table.remove(msgs, 1)
     end
     
     -- Insert summary at the beginning
     table.insert(msgs, 1, summary_msg)
-    
-    -- vim.notify("QuickLLM: History summarized.", vim.log.levels.INFO, { title = "QuickLLM" })
 end
 
----Initiates background summarization of the first 10 messages.
+---Initiates background summarization of the first half of the message buffer.
 ---@param bufnr number
 function M.summarize_history(bufnr)
     is_summarizing[bufnr] = true
     
+    local opts = vim.g.quickllm_history_opts or {}
+    local max_messages = opts.max_messages or 50
+    local half = math.floor(max_messages / 2)
+
     -- Lazy require to avoid circular dependency
     local Providers = require("quickllm.providers")
     local CommandsList = require("quickllm.commands_list")
     
     local msgs = history[bufnr]
-    if not msgs or #msgs < 10 then
+    if not msgs or #msgs < half then
         is_summarizing[bufnr] = false
         return
     end
     
     -- Prepare text to summarize
     local text_block = ""
-    for i = 1, 10 do
+    for i = 1, half do
         local msg = msgs[i]
         text_block = text_block .. string.upper(msg.role) .. ": " .. msg.content .. "\n\n"
     end
@@ -234,8 +270,14 @@ function M.summarize_history(bufnr)
     -- Use a dummy buffer ID (-1) to prevent `make_request` from fetching existing history
     -- and `make_call` (via handle_response) from polluting the real history.
     local dummy_bufnr = -1
-    local provider = Providers.get_provider()
-    local opts = CommandsList.get_cmd_opts("chat")
+    
+    -- Resolve provider and opts with potential summarization overrides
+    local overrides = {
+        provider = opts.summarize_provider,
+        model = opts.summarize_model
+    }
+    local provider = Providers.get_provider(overrides)
+    local cmd_opts = CommandsList.get_cmd_opts("chat", overrides)
     
     if not opts then
          -- Should not happen if chat command exists, but safe guard
@@ -244,10 +286,7 @@ function M.summarize_history(bufnr)
     end
     
     -- Construct request
-    -- We pass full_request_text as command_args. 
-    -- 'chat' command usually takes command_args as the prompt.
-    -- text_selection is empty string.
-    local request, user_msg = provider.make_request("chat", opts, full_request_text, "", dummy_bufnr)
+    local request, user_msg = provider.make_request("chat", cmd_opts, full_request_text, "", dummy_bufnr)
     
     local callback = function(lines)
         if lines and #lines > 0 then

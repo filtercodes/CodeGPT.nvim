@@ -267,6 +267,7 @@ function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_co
     -- Tag the popup buffer with the same metadata as the owner
     if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
         vim.b[ui_bufnr].quickllm_metadata = vim.b[bufnr].quickllm_metadata
+        vim.b[ui_bufnr].quickllm_recall_index = vim.b[bufnr].quickllm_recall_index
     end
 
     -- Register the link between the UI buffer and its owner
@@ -290,6 +291,14 @@ function Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_co
 
     -- unmount component when cursor leaves buffer
     ui_elem:on(event.BufLeave, function()
+        -- Capture cursor position for history recall before closing
+        local recall_index = vim.b[ui_bufnr].quickllm_recall_index
+        if recall_index then
+            local cursor = vim.api.nvim_win_get_cursor(0)
+            local History = require("quickllm.history")
+            History.save_cursor_pos(bufnr, recall_index, cursor)
+        end
+
         -- Deregister the link using the captured buffer number
         ui_to_owner_map[ui_bufnr] = nil
         active_popups[ui_bufnr] = nil
@@ -433,24 +442,19 @@ function Ui.append_to_buf(bufnr, text_chunk, is_thinking)
     local info = active_popups[bufnr]
     local winid = vim.fn.bufwinid(bufnr)
 
-    -- Check if user moved the cursor manually away from the following point.
-    -- If so, we disable 'following' so we don't take over their cursor.
-    if winid ~= -1 and info and info.following then
+    -- Check cursor position to determine if we should follow the stream.
+    -- If user is at the bottom (overflow) or top (bloom), we enable following.
+    -- Otherwise, we disable it to respect manual scrolling.
+    if winid ~= -1 and info then
         local cursor = vim.api.nvim_win_get_cursor(winid)
         local line_count = vim.api.nvim_buf_line_count(bufnr)
 
         if info.current_h >= info.max_h then
-            -- We are in active scrolling mode. If the cursor is not at the bottom, 
-            -- the user has moved away.
-            if cursor[1] < line_count then
-                info.following = false
-            end
+            -- Overflow mode: follow if cursor is at the bottom
+            info.following = (cursor[1] == line_count)
         else
-            -- We are in blooming mode (centering at the top). If the cursor
-            -- is not at the first line, the user has moved away.
-            if cursor[1] > 1 then
-                info.following = false
-            end
+            -- Bloom mode: follow if cursor is at the top
+            info.following = (cursor[1] == 1)
         end
     end
 
@@ -508,10 +512,17 @@ function Ui.append_to_buf(bufnr, text_chunk, is_thinking)
     end
 end
 
-function Ui.popup(lines, filetype, bufnr, start_row, start_col, end_row, end_col)
+function Ui.popup(lines, filetype, bufnr, start_row, start_col, end_row, end_col, cursor_pos)
     local ui_elem = Ui.create_window(filetype, bufnr, start_row, start_col, end_row, end_col)
     vim.api.nvim_buf_set_lines(ui_elem.bufnr, 0, -1, false, lines)
     Ui.sync_window_size(ui_elem.bufnr)
+
+    if cursor_pos then
+        local winid = vim.fn.bufwinid(ui_elem.bufnr)
+        if winid ~= -1 then
+            pcall(vim.api.nvim_win_set_cursor, winid, cursor_pos)
+        end
+    end
 end
 
 return Ui

@@ -42,31 +42,50 @@ function QuickllmModule.run_cmd(opts)
         return -- Stop all further processing
     end
 
-    local is_recall = command == "recall"
+    local is_recall = command and command:find("^recall") ~= nil
+    local show_question = command and command:find("q$") ~= nil
     local is_recall_action = false
     local recall_offset = 1
     
     if is_recall then
         if #opts.fargs == 1 then
             is_recall_action = true
+            recall_offset = 1
         elseif #opts.fargs == 2 then
-            local num = tonumber(opts.fargs[2])
+            local arg = opts.fargs[2]
+            local num = tonumber(arg)
             if num and num > 0 and math.floor(num) == num then
                 is_recall_action = true
                 recall_offset = num
+            elseif arg == "backward" then
+                is_recall_action = true
+                recall_offset = (vim.b[bufnr].quickllm_recall_index or 0) + 1
+            elseif arg == "forward" then
+                is_recall_action = true
+                recall_offset = math.max(1, (vim.b[bufnr].quickllm_recall_index or 1) - 1)
             end
         end
     end
 
     if is_recall_action then
-        local last_response, model, cmd = History.get_last_response(bufnr, recall_offset)
-        if last_response then
-            -- Set metadata on current buffer so create_window can inherit it
-            vim.b[bufnr].quickllm_metadata = { model = model, command = cmd }
+        local last_response, model, cmd, cursor_pos, question = History.get_last_response(bufnr, recall_offset)
+        local display_text = show_question and question or last_response
+
+        if display_text then
+            if not show_question then
+                -- Only store index and metadata if we are showing the answer (Pro features)
+                vim.b[bufnr].quickllm_recall_index = recall_offset
+                vim.b[bufnr].quickllm_metadata = { model = model, command = cmd }
+            else
+                -- If showing question, ensure we don't save cursor on close
+                vim.b[bufnr].quickllm_recall_index = nil
+            end
+            
             local start_row, start_col, end_row, end_col = Utils.get_visual_selection()
-            Ui.popup(Utils.parse_lines(last_response), vim.g.quickllm_text_popup_filetype, bufnr, start_row, start_col, end_row, end_col)
+            Ui.popup(Utils.parse_lines(display_text), vim.g.quickllm_text_popup_filetype, bufnr, start_row, start_col, end_row, end_col, (not show_question and cursor_pos or nil))
         else
-            vim.notify("No assistant response found at history index " .. recall_offset .. " for this buffer.", vim.log.levels.WARN, { title = "QuickLLM" })
+            local msg = show_question and "question" or "assistant response"
+            vim.notify(string.format("No %s found at history index %d for this buffer.", msg, recall_offset), vim.log.levels.WARN, { title = "QuickLLM" })
         end
         return
     end
@@ -154,6 +173,20 @@ function QuickllmModule.run_cmd(opts)
     end
 
     Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts, overrides)
+end
+
+function QuickllmModule.recall(arg)
+    local fargs = { "recall" }
+    if arg then table.insert(fargs, tostring(arg)) end
+    return QuickllmModule.run_cmd({ fargs = fargs, name = "Chat" })
+end
+
+function QuickllmModule.undo()
+    return QuickllmModule.run_cmd({ fargs = { "undo" }, name = "Chat" })
+end
+
+function QuickllmModule.clear()
+    return QuickllmModule.run_cmd({ fargs = { "clear" }, name = "Chat" })
 end
 
 return QuickllmModule

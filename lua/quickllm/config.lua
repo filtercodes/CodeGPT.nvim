@@ -102,20 +102,13 @@ vim.g.quickllm_horizontal_popup_size = "40%"
 -- Set the width of the vertical popup
 vim.g.quickllm_vertical_popup_size = "50%"
 
--- Set timeout for chat history
-if vim.g.quickllm_chat_history_timeout == nil then
-    vim.g.quickllm_chat_history_timeout = 900
-end
-
--- Set if the chat history should expire based on time
-if vim.g.quickllm_chat_history_time_based_expiry == nil then
-    vim.g.quickllm_chat_history_time_based_expiry = true
-end
-
--- Set max messages for chat history
-if vim.g.quickllm_chat_history_max_messages == nil then
-    vim.g.quickllm_chat_history_max_messages = 20
-end
+-- History (short-term memory) configuration
+vim.g.quickllm_history_opts = vim.tbl_extend("force", {
+    timeout = 1800,
+    max_messages = 50,
+    time_based_expiry = false,
+    summarize_history = true,
+}, vim.g.quickllm_history_opts or {})
 
 -- Default Command Templates
 vim.g.quickllm_commands_defaults = {
