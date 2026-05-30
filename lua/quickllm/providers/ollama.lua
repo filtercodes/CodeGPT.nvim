@@ -8,6 +8,100 @@ local Ui = require("quickllm.ui")
 OllaMaProvider = {}
 
 
+---Creates a stateful parser for the Ollama stream to handle tags like <think>.
+---@return table parser An object with a :feed(content) method.
+local function create_stream_parser()
+    return {
+        is_thinking = false,
+        tag_buffer = "",
+
+        ---Processes a chunk of text and returns detected segments.
+        ---@param self table The parser instance.
+        ---@param content string The new chunk of text from the API.
+        ---@return table segments A list of {text, is_thinking} tables.
+        feed = function(self, content)
+            self.tag_buffer = self.tag_buffer .. content
+            local segments = {}
+
+            -- Loop until the buffer is exhausted or we hit a partial tag at the end
+            while self.tag_buffer ~= "" do
+                if not self.is_thinking then
+                    local start_idx = self.tag_buffer:find("<think>")
+                    if start_idx then
+                        -- Text before the tag is regular answer
+                        local before = self.tag_buffer:sub(1, start_idx - 1)
+                        if before ~= "" then
+                            table.insert(segments, { text = before, is_thinking = false })
+                        end
+                        self.is_thinking = true
+                        self.tag_buffer = self.tag_buffer:sub(start_idx + 7)
+                    else
+                        -- No start tag found. Check for a partial tag at the end (e.g. "<thi")
+                        local partial_match = false
+                        local tag = "<think>"
+                        for len = #tag - 1, 1, -1 do
+                            if self.tag_buffer:sub(-len) == tag:sub(1, len) then
+                                local flush_len = #self.tag_buffer - len
+                                if flush_len > 0 then
+                                    local to_flush = self.tag_buffer:sub(1, flush_len)
+                                    table.insert(segments, { text = to_flush, is_thinking = false })
+                                    self.tag_buffer = self.tag_buffer:sub(flush_len + 1)
+                                end
+                                partial_match = true
+                                break
+                            end
+                        end
+
+                        if not partial_match then
+                            table.insert(segments, { text = self.tag_buffer, is_thinking = false })
+                            self.tag_buffer = ""
+                        else
+                            break -- Wait for more data to complete the tag
+                        end
+                    end
+                else
+                    -- Currently in a thinking block, look for </think>
+                    local end_idx = self.tag_buffer:find("</think>")
+                    if end_idx then
+                        -- Text before the tag is thought
+                        local thought = self.tag_buffer:sub(1, end_idx - 1)
+                        if thought ~= "" then
+                            table.insert(segments, { text = thought, is_thinking = true })
+                        end
+                        self.is_thinking = false
+                        self.tag_buffer = self.tag_buffer:sub(end_idx + 8)
+                    else
+                        -- Look for partial end tag at the end (e.g. "</thi")
+                        local partial_match = false
+                        local tag = "</think>"
+                        for len = #tag - 1, 1, -1 do
+                            if self.tag_buffer:sub(-len) == tag:sub(1, len) then
+                                local flush_len = #self.tag_buffer - len
+                                if flush_len > 0 then
+                                    local to_flush = self.tag_buffer:sub(1, flush_len)
+                                    table.insert(segments, { text = to_flush, is_thinking = true })
+                                    self.tag_buffer = self.tag_buffer:sub(flush_len + 1)
+                                end
+                                partial_match = true
+                                break
+                            end
+                        end
+
+                        if not partial_match then
+                            table.insert(segments, { text = self.tag_buffer, is_thinking = true })
+                            self.tag_buffer = ""
+                        else
+                            break -- Wait for more data
+                        end
+                    end
+                end
+            end
+            return segments
+        end
+    }
+end
+
+
 function OllaMaProvider.make_request(command, cmd_opts, command_args, text_selection, bufnr)
     -- Get the history of past messages
     local past_messages = History.get_messages(bufnr)
@@ -115,10 +209,7 @@ function OllaMaProvider.make_call(payload, user_message_text, cb, bufnr)
         
         local partial_data = ""
         local full_text = ""
-        -- State machine for thinking blocks
-        local is_currently_thinking = false
-        -- Tag Buffer: Catch <think> and </think> even if split across chunks
-        local tag_buffer = ""
+        local parser = create_stream_parser()
 
         curl.post(url, {
             body = payload_str,
@@ -134,10 +225,10 @@ function OllaMaProvider.make_call(payload, user_message_text, cb, bufnr)
                 end
                 
                 if not chunk then 
-                     -- End of stream: Handle any remaining tag buffer
+                     -- End of stream: Flush any remaining tag buffer as text
                      vim.schedule(function()
-                        if tag_buffer ~= "" then
-                            cb.on_chunk(tag_buffer, is_currently_thinking)
+                        if parser.tag_buffer ~= "" then
+                            cb.on_chunk(parser.tag_buffer, parser.is_thinking)
                         end
                         cb.on_complete(full_text)
                         Api.run_finished_hook()
@@ -196,8 +287,7 @@ function OllaMaProvider.make_call(payload, user_message_text, cb, bufnr)
                             vim.schedule(function()
                                 Ui.popup(vim.split(vim.inspect(json), "\n"), "lua", bufnr)
                             end)
-                            -- Disable after first chunk to avoid popup spam, 
-                            -- but you can re-enable it in init.lua for each test.
+                            -- Disable after first chunk to avoid popup spam
                             vim.g.quickllm_debug_json = false 
                         end
 
@@ -210,85 +300,13 @@ function OllaMaProvider.make_call(payload, user_message_text, cb, bufnr)
 
                             local content = json.message.content
                             if content and content ~= "" then
-                                -- Append new content to our tag-aware buffer
-                                tag_buffer = tag_buffer .. content
-
-                                -- Look for <think> and </think> tags
-                                -- We use a simple but robust check that works for split tokens
-                                while tag_buffer ~= "" do
-                                    if not is_currently_thinking then
-                                        local start_idx = tag_buffer:find("<think>")
-                                        if start_idx then
-                                            -- Text before the tag is regular answer
-                                            local before = tag_buffer:sub(1, start_idx - 1)
-                                            if before ~= "" then
-                                                full_text = full_text .. before
-                                                cb.on_chunk(before, false)
-                                            end
-                                            is_currently_thinking = true
-                                            tag_buffer = tag_buffer:sub(start_idx + 7)
-                                        else
-                                            -- No start tag found.
-                                            -- If the buffer ends with a partial tag (e.g. "<thi"),
-                                            -- we keep it. Otherwise, flush it as answer.
-                                            local partial_match = false
-                                            for len = 6, 1, -1 do
-                                                if tag_buffer:sub(-len) == ("<think>"):sub(1, len) then
-                                                    local flush_len = #tag_buffer - len
-                                                    if flush_len > 0 then
-                                                        local to_flush = tag_buffer:sub(1, flush_len)
-                                                        full_text = full_text .. to_flush
-                                                        cb.on_chunk(to_flush, false)
-                                                        tag_buffer = tag_buffer:sub(flush_len + 1)
-                                                    end
-                                                    partial_match = true
-                                                    break
-                                                end
-                                            end
-
-                                            if not partial_match then
-                                                full_text = full_text .. tag_buffer
-                                                cb.on_chunk(tag_buffer, false)
-                                                tag_buffer = ""
-                                            else
-                                                break -- Wait for more data
-                                            end
-                                        end
-                                    else
-                                        -- Currently thinking, look for </think>
-                                        local end_idx = tag_buffer:find("</think>")
-                                        if end_idx then
-                                            -- Text before the tag is thought
-                                            local thought = tag_buffer:sub(1, end_idx - 1)
-                                            if thought ~= "" then
-                                                cb.on_chunk(thought, true)
-                                            end
-                                            is_currently_thinking = false
-                                            tag_buffer = tag_buffer:sub(end_idx + 8)
-                                        else
-                                            -- Look for partial end tag
-                                            local partial_match = false
-                                            for len = 7, 1, -1 do
-                                                if tag_buffer:sub(-len) == ("</think>"):sub(1, len) then
-                                                    local flush_len = #tag_buffer - len
-                                                    if flush_len > 0 then
-                                                        local to_flush = tag_buffer:sub(1, flush_len)
-                                                        cb.on_chunk(to_flush, true)
-                                                        tag_buffer = tag_buffer:sub(flush_len + 1)
-                                                    end
-                                                    partial_match = true
-                                                    break
-                                                end
-                                            end
-
-                                            if not partial_match then
-                                                cb.on_chunk(tag_buffer, true)
-                                                tag_buffer = ""
-                                            else
-                                                break
-                                            end
-                                        end
+                                -- Feed the stream parser and iterate over results
+                                local segments = parser:feed(content)
+                                for _, segment in ipairs(segments) do
+                                    if not segment.is_thinking then
+                                        full_text = full_text .. segment.text
                                     end
+                                    cb.on_chunk(segment.text, segment.is_thinking)
                                 end
                             end
                         end

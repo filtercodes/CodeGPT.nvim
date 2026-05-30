@@ -393,7 +393,7 @@ vim.g.quickllm_print_model = false
 
 ### Popup commands
 
-The default filetype of the text popup window is markdown. You can change this by setting the `quickllm_text_popup_filetype` variable.
+The default filetype of the text popup window is markdown. This can be changed by setting the `quickllm_text_popup_filetype` variable.
 
 ```lua
 vim.g.quickllm_text_popup_filetype = "markdown"
@@ -444,16 +444,17 @@ vim.g.quickllm_popup_layout = {
 
 ### Dynamic Popup Resizing
 
-To dynamically adjust the size of the popup set custom keymaps and it will setup max size setting for the session. This might be useful for expanding the window when reading long code or shrinking it to see better the conent of the window below it. 
+Set custom keymaps to dynamically setup max size setting for the session. This might be useful for expanding the window when reading long code or shrinking it to see better the conent of the window below it.
 
 The following example maps `<leader>q` + Arrow Keys to increase/decrease the dimensions by 10% increments.
 
 ```lua
 -- Increase/Decrease popup dimensions on the fly
-vim.keymap.set("n", "<leader>q<Up>",    function() require("quickllm").adjust_popup_size(0, 10)   end)
-vim.keymap.set("n", "<leader>q<Down>",  function() require("quickllm").adjust_popup_size(0, -10)  end)
-vim.keymap.set("n", "<leader>q<Left>",  function() require("quickllm").adjust_popup_size(10, 0)   end)
-vim.keymap.set("n", "<leader>q<Right>", function() require("quickllm").adjust_popup_size(-10, 0)  end)
+local qllm = require("quickllm")
+vim.keymap.set("n", "<leader>q<Up>",    function() qllm.adjust_popup_size(0, 10)   end)
+vim.keymap.set("n", "<leader>q<Down>",  function() qllm.adjust_popup_size(0, -10)  end)
+vim.keymap.set("n", "<leader>q<Left>",  function() qllm.adjust_popup_size(10, 0)   end)
+vim.keymap.set("n", "<leader>q<Right>", function() qllm.adjust_popup_size(-10, 0)  end)
 ```
 
 ### Popup border style
