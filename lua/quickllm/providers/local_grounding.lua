@@ -82,6 +82,7 @@ end
 
 function LocalGroundingProvider.make_call(payload, user_message_text, cb, bufnr)
     Api.run_started_hook()
+    local OllaMaProvider = require("quickllm.providers.ollama")
     
     -- Call Tavily
     call_tavily(user_message_text, function(tavily_json, err)
@@ -119,120 +120,33 @@ function LocalGroundingProvider.make_call(payload, user_message_text, cb, bufnr)
 
         local ollama_payload = vim.deepcopy(payload)
         ollama_payload.messages = messages
-        ollama_payload.stream = (type(cb) == "table")
 
-        -- Call Ollama
-        local ollama_url = vim.g.quickllm_ollama_url or "http://127.0.0.1:11434/api/chat"
-        local ollama_headers = { ["Content-Type"] = "application/json" }
-
+        -- Call Ollama through the expert Ollama provider
         if type(cb) == "table" then
-            -- Streaming Mode
-            local payload_str = vim.fn.json_encode(ollama_payload)
-            local partial_data = ""
-            local full_text = ""
-
-            curl.post(ollama_url, {
-                body = payload_str,
-                headers = ollama_headers,
-                raw = { "--no-buffer" },
-                stream = function(stream_err, chunk)
-                    if stream_err then
-                        vim.schedule(function() cb.on_error(stream_err) end)
-                        return
+            -- Streaming Mode: Wrap callbacks to append sources
+            local wrapped_cb = {
+                on_chunk = cb.on_chunk,
+                on_error = cb.on_error,
+                on_complete = function(full_text)
+                    if #sources > 0 and vim.g.quickllm_show_search_sources then
+                        local sources_text = "\n\n**Sources:**\n" .. table.concat(sources, "\n")
+                        cb.on_chunk(sources_text)
                     end
-                    if not chunk then
-                        vim.schedule(function()
-                            -- Process any remaining data in partial_data
-                            if partial_data and partial_data ~= "" then
-                                local ok, json = pcall(vim.json.decode, partial_data)
-                                if ok and json and json.message and json.message.content then
-                                    local text_fragment = json.message.content
-                                    full_text = full_text .. text_fragment
-                                    cb.on_chunk(text_fragment)
-                                end
-                            end
-
-                            if #sources > 0 and vim.g.quickllm_show_search_sources then
-                                local sources_text = "\n\n**Sources:**\n" .. table.concat(sources, "\n")
-                                cb.on_chunk(sources_text)
-                            end
-                            cb.on_complete(full_text)
-                            Api.run_finished_hook()
-                        end)
-                        return
-                    end
-
-                    partial_data = partial_data .. chunk
-                    local current_buffer = partial_data
-                    local processed_segment_end = 0
-
-                    while true do
-                        local json_start_idx = string.find(current_buffer, "{", processed_segment_end + 1, true)
-                        if not json_start_idx then break end
-
-                        local brace_level = 0
-                        local json_end_idx = -1
-                        for i = json_start_idx, #current_buffer do
-                            local char = string.sub(current_buffer, i, i)
-                            if char == "{" then brace_level = brace_level + 1
-                            elseif char == "}" then brace_level = brace_level - 1 end
-                            if brace_level == 0 and char == "}" then
-                                json_end_idx = i
-                                break
-                            end
-                        end
-
-                        if json_end_idx == -1 then break end
-
-                        local json_str = string.sub(current_buffer, json_start_idx, json_end_idx)
-                        processed_segment_end = json_end_idx
-
-                        local ok, json = pcall(vim.json.decode, json_str)
-                        if ok and json and json.message then
-                            local content = json.message.content
-                            if content and content ~= "" then
-                                full_text = full_text .. content
-                                cb.on_chunk(content)
-                            end
-                        end
-                    end
-                    partial_data = string.sub(current_buffer, processed_segment_end + 1)
-                end,
-                on_error = function(err_msg)
-                    cb.on_error(err_msg)
-                    Api.run_finished_hook()
-                end,
-            })
+                    cb.on_complete(full_text)
+                    -- Api.run_finished_hook() is called inside OllamaProvider.make_call
+                end
+            }
+            OllaMaProvider.make_call(ollama_payload, user_message_text, wrapped_cb, bufnr)
         else
-            -- Non-Streaming Mode
-            curl.post(ollama_url, {
-                body = vim.fn.json_encode(ollama_payload),
-                headers = ollama_headers,
-                callback = function(response)
-                    vim.schedule(function()
-                        if response.status ~= 200 then
-                            print("Ollama Error: " .. response.status .. " " .. response.body)
-                            Api.run_finished_hook()
-                            return
-                        end
-                        local ok, json = pcall(vim.fn.json_decode, response.body)
-                        if ok and json and json.message and json.message.content then
-                            local response_text = json.message.content
-                            if #sources > 0 and vim.g.quickllm_show_search_sources then
-                                response_text = response_text .. "\n\n**Sources:**\n" .. table.concat(sources, "\n")
-                            end
-                            History.add_message(bufnr, "user", user_message_text)
-                            History.add_message(bufnr, "assistant", response_text)
-                            cb(Utils.parse_lines(response_text))
-                        end
-                        Api.run_finished_hook()
-                    end)
-                end,
-                on_error = function(err_msg)
-                    print("Ollama Curl Error: " .. tostring(err_msg))
-                    Api.run_finished_hook()
-                end,
-            })
+            -- Non-Streaming Mode: Wrap callback to append sources
+            OllaMaProvider.make_call(ollama_payload, user_message_text, function(lines)
+                local response_text = table.concat(lines, "\n")
+                if #sources > 0 and vim.g.quickllm_show_search_sources then
+                    response_text = response_text .. "\n\n**Sources:**\n" .. table.concat(sources, "\n")
+                end
+                cb(Utils.parse_lines(response_text))
+                -- Api.run_finished_hook() is called inside OllamaProvider.make_call
+            end, bufnr)
         end
     end)
 end
