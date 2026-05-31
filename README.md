@@ -2,14 +2,14 @@
 
 QuickLLM provides a fast way to access LLMs directly within the Neovim editor. Running an editor command followed by a prompt opens the response in a popup window. The plugin is highly configurable and includes advanced context and knowledge management tools, as well as coding focused commands.
 
-No Agentic Overhead - QuickLLM follows philosophy that the "developer is the agent orchestrator". This allows for streamlined workflow with mid-size/large local models and gives the control back to the developer who might feel like "stuck in the agentic loop".
+No Agentic Overhead - QuickLLM follows the philosophy: "developer is the agent orchestrator". This allows for a streamlined workflow with mid-size or large local language models and gives control back to the developer who might feel like "stuck in the agentic loop".
 
 Focus is on context management, knowledge extraction and using direct commands to call tools and self-orchestrate the AI development workflow.
 
 ## Installation
 
-* Set environment variable for your prefered API key e.g. `ANTHROPIC_API_KEY` [Claude API key](https://platform.claude.com/settings/workspaces/default/keys).
-* The plugins 'plenary' and 'nui' are also required.
+* Set environment variable for your preferred API key e.g. `ANTHROPIC_API_KEY` [Claude API key](https://platform.claude.com/settings/workspaces/default/keys).
+* The plugins `plenary` and `nui` are also required.
 
 Installing with [lazy.nvim](https://github.com/folke/lazy.nvim).
 
@@ -59,11 +59,11 @@ pcall(function() require('vim._core.ui2').enable() end)
 The top-level command is `:Chat`. The behavior is different depending on whether text is selected and/or arguments are passed.
 
 ### Direct Provider Commands & Presets
-In addition to `:Chat` (which uses globally configured default provider), you can invoke specific providers directly, bypassing default settings eg.:
+In addition to `:Chat` (which uses globally configured default provider), you can invoke specific providers directly, bypassing default settings e.g.:
 * `:Gemini <prompt>`
 * `:Claude <prompt>` etc.
 
-Using these commands behaves exactly like `:Chat`, but routes the request to the specified API with its default model.
+Using these commands works exactly like `:Chat`, but routes the request to the specified API with its default model.
 
 There are also configurable presets: `:Chat1`, `:Chat2`, and `:Chat3`. To quickly switch between different models and providers without changing global configuration (e.g., setting `:Chat2` to always use Anthropic's Claude 3.5 Sonnet while `:Chat` remains local Ollama instance). See the "Overriding Command Configurations" section below for details.
 
@@ -82,32 +82,32 @@ There are also configurable presets: `:Chat1`, `:Chat2`, and `:Chat3`. To quickl
 
 ![edit](examples/code_edit.gif?raw=true)
 
-### Coustom Commands
+### Custom Commands
 * `:Chat <command>` if there is only one argument and that argument matches a command, it will invoke that command with the given text selection. In the below example `:Chat tests` will attempt to write units for the selected code.
 
 ![tests](examples/tests.gif?raw=true)
 
 ### A list of default commands
 
-| command      | input | Description |
+| Command      | Input | Description |
 |--------------|---- |------------------------------------|
-| chat  |  prompt | Will pass the given prompt to LLM and return the response in a popup. |
-| search |  prompt (optional text selection) | Will trigger a web search (grounding) before answering to provide up-to-date information and reduce LLM hallucinations. Will show the grounded answer in the popup. |
-| complete |  text selection | Will ask LLM to complete the selected code directly in the editor. |
-| edit  |  text selection + prompt | Will ask LLM to apply the given instructions to the selected code in the editor. |
-| explain  |  text selection | Will ask LLM to explain the selected code and return the answer in a text popup. |
-| read  |  "file list" + prompt | Will read multiple files (supports wildcards) and passes their content as the context for your prompt. |
-| grep  |  "file list" + < query > + prompt | Will perform a fuzzy search across files for a query and send the chunks to the LLM. |
-| wiki  |  search query | Will perform a semantic search across your local Knowledge Base using Hierarchical RAG (Map & Territory). |
-| wiki_index  |  none | Scans your Knowledge Base folder and performs a 'one-pass' indexing with LLM-generated summaries and vectors. |
+| chat  |  prompt | Passes the given prompt to LLM and returns the response in a popup. |
+| search |  prompt (optional text selection) | Triggers a web search (grounding) before answering to provide up-to-date information and reduce LLM hallucinations. Shows the grounded answer in a popup. |
+| complete |  text selection | Asks LLM to complete the selected code directly in the editor. |
+| edit  |  text selection + prompt | Asks LLM to apply the given instructions to the selected code in the editor. |
+| explain  |  text selection | Asks LLM to explain the selected code and return the answer in a text popup. |
+| files  |  "file list" + prompt | Reads multiple local project files (supports wildcards) and passes their content as the context for your prompt. |
+| scan  |  "file list" + < query > + prompt | Performs a hybrid search across local project files for a query and send relevant chunks to the LLM. |
+| wiki  |  search query | Performs a semantic search across your local Knowledge Base using Hierarchical RAG (Map & Territory). |
+| wiki_index  |  none | Scans your Knowledge Base folder and performs a one-pass indexing with LLM-generated summaries and vectors. |
 | wiki_save  |  text selection or none | Saves your current buffer or visual selection into the Knowledge Base for future retrieval.
-| doc  |  text selection | Will ask LLM to document the selected code. Will update the text directly in the editor. |
-| tests  |  text selection | Will ask LLM to write unit tests for the selected code in the popup window. |
-| opt  |  text selection | Will ask LLM to optimize the selected code. Will update the code directly in the editor. |
-| debug  |  text selection | Will pass the code selectiont to LLM analyze it for bugs, the results will be in a popup. |
-| recall  |  none or number | Will display the last assistant response from the chat history in a popup without altering the history. Optionally accept a number to go further back (e.g., `:Chat recall 2`). |
-| undo  |  none | Will remove the last exchange (your prompt and the assistant's response) from the chat history. Useful for reverting a bad conversation turn. |
-| clear  |  none | Will delete complete chat short-term memory to start blank. |
+| doc  |  text selection | Asks LLM to document the selected code. Updates the text directly in the editor. |
+| tests  |  text selection | Asks LLM to write unit tests for the selected code in the popup window. |
+| opt  |  text selection | Asks LLM to optimize the selected code. Updates the code directly in the editor. |
+| debug  |  text selection | Passes the code selection to LLM to analyze it for bugs, the results will be in a popup. |
+| recall  |  none or number | Displays the last assistant response from the chat history in a popup without altering the history. Optionally accept a number to go further back (e.g., `:Chat recall 2`). |
+| undo  |  none | Removes the last exchange (your prompt and the assistant's response) from the chat history. Useful for reverting a bad conversation turn. |
+| clear  |  none | Clears the short-term chat memory to start fresh. |
 | help  |  none | Displays the help guide. |
 
 ## Overriding Command Configurations
@@ -141,7 +141,7 @@ vim.g.quickllm_commands_defaults = {
 
 ### Other Supported Overrides
 
-| name | value | description |
+| Name | Value | Description |
 |------|---------|-------------|
 | max_tokens | 16384 | The maximum number of tokens to use including the prompt tokens. |
 | user_message_template | "" | The primary prompt template. |
@@ -149,8 +149,6 @@ vim.g.quickllm_commands_defaults = {
 | allow_empty_text_selection | false | If true, command runs without a visual selection. |
 | language_instructions | {} | Map of `filetype` -> specific instructions. |
 | extra_params | {} | Table of custom parameters for the API (e.g., `top_p`, `stop_sequences`). |
-
----
 
 ### Configuring Providers and Models
 
@@ -193,18 +191,18 @@ vim.g.quickllm_commands_defaults1 = {
 
 When you run a command, QuickLLM determines the settings by merging tables in this order (highest priority from the top):
 
-1.  **User Commands**: Custom logic in `vim.g.quickllm_commands[cmd]`.
-2.  **Command-Specific Override**: Nested table in `vim.g.quickllm_commands_defaults[cmd]`.
-3.  **Global Defaults**: Flat keys in `vim.g.quickllm_commands_defaults`.
-4.  **Global Provider Defaults**: `vim.g.quickllm_provider_defaults[provider]`.
-5.  **Preset Provider Defaults**: `vim.g.quickllm_provider_defaults1[provider]`.
-6.  **Hardcoded Defaults**: Base values defined in the plugin code.
+1.  User Commands: Custom logic in `vim.g.quickllm_commands[cmd]`.
+2.  Command-Specific Override: Nested table in `vim.g.quickllm_commands_defaults[cmd]`.
+3.  Global Defaults: Flat keys in `vim.g.quickllm_commands_defaults`.
+4.  Global Provider Defaults: `vim.g.quickllm_provider_defaults[provider]`.
+5.  Preset Provider Defaults: `vim.g.quickllm_provider_defaults1[provider]`.
+6.  Hardcoded Defaults: Base values defined in the plugin code.
 
 ### Search (grounding) configuration
 
 `vim.g.quickllm_search_provider` - Defines which provider to use for the `:Chat search` command. Current supported options are `"gemini"`, `"openai"`, `"anthropic"` and `"local_grounding"`. Defaults to `"gemini"`.
 
-`vim.g.quickllm_show_search_sources` - Boolean (Default: `true`). Allows you to see the links/citations used by the LLM during a search displayed in the popup UI. If you are using a smaller model you can set it to `false` to deal with strict context limits.
+`vim.g.quickllm_show_search_sources` - Boolean (Default: `true`). Allows you to see the links/citations used by LLM during a search displayed in the popup UI. If you are using a smaller model you can set it to `false` to deal with strict context limits.
 
 `vim.g.quickllm_ground_with_history` - Boolean (Default: `false`). If you want to send previous conversation history to the grounding model set it to `true`. This might be useful for model to pick up more info about the search term from the context, but also conversation history might confuse smaller models or create biased grounding.
 
@@ -214,30 +212,31 @@ vim.g.quickllm_show_search_sources = true
 vim.g.quickllm_ground_with_history = false
 ```
 
-Note that `"local_grounding"` requires `TAVILY_API_KEY` as an enviroment variable. Local Ollama model uses internet search results from [Tavily](https://app.tavily.com/home) to construct a grounded answer.
+Note that `"local_grounding"` requires `TAVILY_API_KEY` as an environment variable! Local Ollama model uses internet search results from [Tavily](https://app.tavily.com/home) to construct a grounded answer.
 
 ## Knowledge Base & Context Engine (Hierarchical RAG)
 
-QuickLLM includes a local Knowledge Base system designed to transform your Markdown notes into a compounding "Wiki IDE." This architecture is inspired by the **"LLM Wiki"** concept proposed by **[Andrej Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)**, and it's implementing a dual-layer retrieval system (Map and Territory) for high-accuracy semantic discovery.
+QuickLLM includes a local Knowledge Base system designed to transform your Markdown notes into a compounding "Wiki IDE." This architecture is inspired by the **[LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)** concept proposed by Andrej Karpathy, implementing a dual-layer retrieval system (Map and Territory) for high-accuracy semantic discovery.
 
 ### Context Engine Commands
-These commands allow you to inject arbitrary file context or fuzzy search results into any LLM request without bloating your chat history context.
+These commands allow you to inject arbitrary file context or search results into any LLM request without bloating chat history context.
 
-*   **`:Chat read "file1.py file2.js *.md" prompt text`**: Reads multiple files (supports wildcards and escaped quotes) and passes their content as the context for your prompt.
+*   `:Chat files "file1.py file2.js *.md" prompt text`: Reads multiple local files (supports wildcards and escaped quotes) and passes their content as the context for your prompt.
     *   *Tip*: If no prompt is provided, it defaults to the `explain` command for all files.
-*   **`:Chat grep "src/*.lua" <query> prompt text`**: Performs a fuzzy search across the specified files for the `<query>` and sends the relevant code chunks to the LLM for analysis.
-*   **`:Chat wiki <query>`**: Performs a semantic search across your local Knowledge Base using the Hierarchical RAG architecture.
+*   `:Chat scan "src/*.lua" <query> prompt text`: Performs a hybrid search across local project files for the `<query>` and sends the relevant code chunks to LLM for the analysis.
+    *   *Tip*: If no prompt is provided, it simply displays the search results in a local popup without calling LLM. The result goes to the chat history so the next llm inference is going to see it from there.
+*   `:Chat wiki <query>`: Performs a semantic search across your global Knowledge Base using the Hierarchical RAG architecture.
 
 ### The "Librarian" Architecture (Map & Territory)
 When running in `complex` mode, QuickLLM employs a dual-layer retrieval strategy:
-1.  **The Map (Summaries)**: Retrieval finds the top relevant documents based on LLM-generated summaries and conceptual schema links.
-2.  **The Territory (Chunks)**: Retrieval finds specific, granular evidence chunks using header-aware semantic splitting.
+1.  The Map (Summaries): Retrieval finds the top relevant documents based on LLM-generated summaries and conceptual schema links.
+2.  The Territory (Chunks): Retrieval finds specific, granular evidence chunks using header-aware semantic splitting.
 
-This ensures the LLM understands both the "big picture" (Map) and the "exact data" (Territory) before formulating a response.
+This ensures LLM understands both the "big picture" (Map) and the "exact data" (Territory) before formulating a response.
 
 ### Knowledge Base Management
-*   **`:Chat wiki_index`**: Scans your KB folder and performs a "one-pass" indexing. It uses a local LLM to act as a Librarian, generating summaries and schema connections while computing vectors via Ollama. It includes sha256-based change detection to skip unchanged files.
-*   **`:Chat wiki_save filename.md`**: Saves your current buffer or visual selection directly into the Knowledge Base and immediately triggers a background index update for that file.
+*   `:Chat wiki_index`: Scans your Knowledge Base folder and performs a "one-pass" indexing. It uses an LLM to act as a Librarian, generating summaries and schema connections while computing vectors using the selected wiki provider. It includes sha256-based change detection to skip unchanged files.
+*   `:Chat wiki_save filename.md`: Saves your current buffer or visual selection directly into your global Knowledge Base and immediately triggers a background index update for that file.
 
 ### Configuration
 
@@ -250,18 +249,18 @@ vim.g.quickllm_kb_style = "complex"             -- "simple" (keyword/chunks) or 
 -- Advanced Tuning
 vim.g.quickllm_kb_embedding_model = "nomic-embed-text"
 vim.g.quickllm_kb_embedding_dimension = 768    -- Dimension of your local embedding model
-vim.g.quickllm_fuzz_context = 3                 -- Lines of context around grep/fuzz matches
+vim.g.quickllm_scan_context = 3                 -- Lines of context around scan matches
 ```
 
 #### Known Limitations
-*   **Regex Chunker**: The Knowledge Base uses a line-based regex to split Markdown files by headers (`#`). Comments starting with `#` inside code blocks may occasionally trigger unexpected chunk splits.
-*   **SQLite Concurrency**: Large indexing operations may briefly lock the database. The system includes an automatic retry mechanism to mitigate this.
+*   Regex Chunker: The Knowledge Base uses a line-based regex to split Markdown files by headers (`#`). Comments starting with `#` inside code blocks may occasionally trigger unexpected chunk splits.
+*   SQLite Concurrency: Large indexing operations may briefly lock the database. The system includes an automatic retry mechanism to mitigate this.
 
 ## Chat History (short-term memory)
 
 QuickLLM manages history automatically. You can tune its behavior using the `vim.g.quickllm_history_opts` table.
 
-| option | default | description |
+| Option | Default | Description |
 |--------|---------|-------------|
 | max_messages | 50 | Total messages to retain before summarizing older ones. |
 | time_based_expiry | false | If `true`, history automatically clears after the `timeout`. |
@@ -308,7 +307,7 @@ vim.keymap.set("n", "<leader>qc", function() qllm.clear() end)
 
 ### Custom status hooks
 
-You can add custom hooks to update your status line or other ui elements, for example, this code updates the status line colour to yellow whilst the request is in progress.
+You can add custom hooks to update your status line or other ui elements, for example, this code updates the status line colour to yellow while the request is in progress.
 
 ```lua
 vim.g.quickllm_hooks = {
@@ -350,7 +349,7 @@ vim.g.quickllm_hooks = {
 }
 ```
 
-Alternativelly if you don't use `lualine` vim.notify print will tell you which model is currently in use. If you do use `lualine` you might want to set this to `false`.
+Alternatively if you don't use `lualine`, a `vim.notify` message will display the current model. If you do use `lualine` you might want to set this to `false`.
 
 ```lua
 vim.g.quickllm_print_model = false
@@ -372,7 +371,7 @@ vim.g.quickllm_commands_defaults1 = {
 }
 ```
 
-Additionally look on how to enable KV Cache and for MacOS use [NVFP4](https://ollama.com/blog/mlx) models to utilise MLX framework natively.
+Additionally, look into how to enable KV Cache, and for MacOS use [NVFP4](https://ollama.com/blog/mlx) models to utilise MLX framework natively.
 
 ## Popup options
 
@@ -384,7 +383,7 @@ The default filetype of the text popup window is markdown. This can be changed b
 vim.g.quickllm_text_popup_filetype = "markdown"
 ```
 
-To make the internal code examples have syntax highlighting add your prefered languages to `init.vim`:
+To make the internal code examples have syntax highlighting add your preferred languages to `init.vim`:
 ```vim
 " Define the languages
 let g:markdown_fenced_languages = ['python', 'javascript', 'lua', 'cpp']
@@ -429,9 +428,9 @@ vim.g.quickllm_popup_layout = {
 
 ### Dynamic Popup Resizing
 
-Set custom keymaps to dynamically setup max size setting for the session. This might be useful for expanding the window when reading long code or shrinking it to see better the conent of the window below it.
+Set custom keymaps to dynamically setup max size setting for the session. This is useful for expanding the window when reading long code blocks, or shrinking it to better see the buffer behind it.
 
-The following example maps `<leader>q` + Arrow Keys to increase/decrease the dimensions by 10% increments.
+The following example maps `<leader>q` + Arrow Keys to increase/decrease the dimensions by 10% increments. The values that were set this way will become default for the duration of this session.
 
 ```lua
 -- Increase/Decrease popup dimensions on the fly
@@ -503,7 +502,7 @@ vim.g.quickllm_vertical_popup_size = "40%"
 
 The `system_message_template` and the `user_message_template` can contain template macros. For example:
 
-| macro | description |
+| Macro | Description |
 |------|-------------|
 | `{{filetype}}` | The `filetype` of the current buffer. |
 | `{{text_selection}}` | The selected text in the current buffer. |
@@ -564,22 +563,22 @@ The above configuration adds the command `:Chat modernize` that attempts moderni
 
 ## Callback Types
 
-Callback types control what to do with the response
+Callback types control what happens to the response.
 
-| name      | Description |
+| Name      | Description |
 |--------------|----------|
-| replace_lines | replaces the current lines with the response. If no text is selected it will insert the response at the cursor. |
-| text_popup | Will display the result in a text popup window. |
-| code_popup | Will display the results in a popup window with the filetype set to the filetype of the current buffer |
+| replace_lines | Replaces the current lines with the response. If no text is selected it inserts the response at the cursor. |
+| text_popup | Displays the result in a text popup window. |
+| code_popup | Displays the results in a popup window with the filetype set to the filetype of the current buffer |
 
 
 ## Template Variables
 
-| name      | Description |
+| Name      | Description |
 |--------------|----------|
 | language |  Programming language of the current buffer. |
-| filetype |  filetype of the current buffer. |
+| filetype |  Filetype of the current buffer. |
 | text_selection |  Any selected text. |
 | command_args | Command arguments. |
-| filetype_instructions | filetype specific instructions. |
+| filetype_instructions | Filetype specific instructions. |
 

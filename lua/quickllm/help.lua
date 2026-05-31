@@ -9,8 +9,8 @@ local command_descriptions = {
     complete = "Completes the current code selection. Useful for finishing a function or block of code based on the context provided by the selection.",
     edit = "Modifies the selected code based on your instructions. Use this to refactor, change logic, or apply specific transformations to existing code.",
     explain = "Provides a detailed explanation of the selected code. It breaks down the logic and explains it in simple terms, useful for understanding complex legacy code.",
-    read = "Reads multiple files (supports wildcards) and passes their content as the context for your prompt.",
-    grep = "Performs a fuzzy search across files for a query and sends the chunks to the LLM.",
+    files = "Reads multiple local project files (supports wildcards) and passes their content as context to the prompt.",
+    scan = "Performs a hybrid search (fuzzy/literal) across local project files and sends relevant chunks to the LLM.",
     wiki = "Performs a semantic search across your local Knowledge Base using Hierarchical RAG (Map & Territory).",
     wiki_index = "Scans your KB folder and performs a 'one-pass' indexing with LLM-generated summaries and vectors.",
     wiki_save = "Saves your current buffer or visual selection directly into the Knowledge Base for future retrieval.",
@@ -46,7 +46,7 @@ function M.get_help_lines()
 
     local commnds_listed = {
         "chat", "search", "complete", "edit",
-        "explain", "read", "grep",
+        "explain", "files", "scan",
         "wiki", "wiki_index", "wiki_save",
         "doc", "tests", "opt", "debug",
         "recall", "undo", "clear", "help"

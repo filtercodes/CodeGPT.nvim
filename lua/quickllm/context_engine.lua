@@ -49,7 +49,7 @@ end
 
 ---Parses the input string to find delimited blocks, search queries, and prompt.
 ---Handles escaped characters like \" or \`.
----@param input string The full command input (e.g. 'read "file 1.lua" <my query> prompt')
+---@param input string The full command input (e.g. 'files "file 1.lua" <my query> prompt')
 ---@return table extracted List of strings from file delimiters.
 ---@return string? query Content from <query> brackets.
 ---@return string remaining Everything else.
@@ -130,15 +130,15 @@ function M.parse_input(input)
     return extracted, query, remaining
 end
 
----Performs a fuzzy/grep search across files and returns matching chunks.
+---Performs a hybrid search (scan) across files and returns matching chunks.
 ---@param files table List of resolved file paths.
 ---@param query string The search query.
 ---@param context_lines number? Number of lines around the match to include.
 ---@return string The formatted search results.
-function M.fuzz_search(files, query, context_lines)
+function M.scan_search(files, query, context_lines)
     local results = ""
     -- Use global variable for context or default to 3
-    local ctx = context_lines or vim.g.quickllm_fuzz_context or 3
+    local ctx = context_lines or vim.g.quickllm_scan_context or 3
     
     for _, path in ipairs(files) do
         local lines = vim.fn.readfile(path)
@@ -178,16 +178,18 @@ function M.fuzz_search(files, query, context_lines)
     return results
 end
 
----Orchestrates context-based commands (read/files/fuzz/grep).
+---Orchestrates context-based commands (files/scan/explain).
 ---@param command string The command name.
 ---@param fargs table The command arguments.
 ---@param current_bufnr number The current buffer.
----@return string command The resolved command name.
+---@param current_selection string? Optional current visual selection.
+---@return string? command The resolved command name.
 ---@return string command_args The prompt/arguments for the LLM.
 ---@return string text_selection The injected context.
 ---@return table overrides Table with history_user_message and ground_with_history.
-function M.handle_context_command(command, fargs, current_bufnr)
+function M.handle_context_command(command, fargs, current_bufnr, current_selection)
     local CommandsList = require("quickllm.commands_list")
+    local ProjectContext = require("quickllm.project_context")
     local raw_input = table.concat(fargs, " ", 2)
     local extracted_blocks, query, remaining_prompt = M.parse_input(raw_input)
     
@@ -195,66 +197,77 @@ function M.handle_context_command(command, fargs, current_bufnr)
     local resolved_files = {}
     local overrides = { ground_with_history = false }
     local command_args = remaining_prompt
-    local text_selection = ""
+    local text_selection = current_selection or ""
+
+    -- Project Context Injection
+    local project_map = ProjectContext.get_active_context()
+    local system_context = ""
+    if project_map then
+        system_context = "\n[SYSTEM PROJECT CONTEXT]\n" .. project_map .. "\n---\n"
+        if vim.g.quickllm_project_defaults and vim.g.quickllm_project_defaults.auto_check_freshness then
+            ProjectContext.check_freshness()
+        end
+    end
 
     if #extracted_blocks > 0 then
         resolved_files = M.resolve_patterns(extracted_blocks)
-    elseif command == "fuzz" or command == "grep" then
+    elseif command == "scan" then
         resolved_files = { vim.api.nvim_buf_get_name(current_bufnr) }
     end
 
     if #resolved_files > 0 then
-        if command == "read" or command == "files" then
+        if command == "files" then
             context_text = M.format_files_as_context(resolved_files)
             
             local history_prompt = ""
             if remaining_prompt == "" then
                 command = "explain"
                 command_args = "Explain the provided files."
-                history_prompt = "Explain these files: " .. table.concat(extracted_blocks, ", ")
+                history_prompt = "FILES: Explain " .. table.concat(extracted_blocks, ", ")
             else
                 local first_word = remaining_prompt:match("^(%S+)")
                 if first_word and CommandsList.get_cmd_opts(first_word) then
                     command = first_word
                     command_args = vim.trim(remaining_prompt:sub(#first_word + 1))
-                    history_prompt = first_word:upper() .. ": " .. command_args .. " (Context: " .. #resolved_files .. " files)"
+                    history_prompt = "FILES " .. first_word:upper() .. ": " .. command_args .. " (" .. #resolved_files .. " files)"
                 else
                     command = "chat"
                     command_args = remaining_prompt
-                    history_prompt = "CHAT: " .. command_args .. " (Context: " .. #resolved_files .. " files)"
+                    history_prompt = "FILES CHAT: " .. command_args .. " (" .. #resolved_files .. " files)"
                 end
             end
             overrides.history_user_message = history_prompt
-            text_selection = context_text
-        else
-            -- fuzz / grep
+            text_selection = system_context .. context_text
+        elseif command == "scan" then
             -- 1. Determine the search query (prioritize <query> brackets)
             local search_query = query or remaining_prompt
-            
+
             if search_query and search_query ~= "" then
-                context_text = M.fuzz_search(resolved_files, search_query)
-                
+                context_text = M.scan_search(resolved_files, search_query)
+
                 -- 2. Determine prompt behavior
                 if query and remaining_prompt ~= "" then
                     -- Both <query> and a prompt provided: Send to LLM
                     command = "chat"
-                    command_args = remaining_prompt .. "\n\n" .. context_text
-                    text_selection = ""
-                    overrides.history_user_message = "GREP: '" .. search_query .. "' in " .. table.concat(extracted_blocks, ", ")
+                    command_args = remaining_prompt
+                    text_selection = system_context .. context_text
+                    overrides.history_user_message = "SCAN: '" .. search_query .. "' in " .. table.concat(extracted_blocks, ", ")
                 else
-                    -- No prompt provided (or only query provided as prompt): 
-                    -- Just display results as a local "tool output" in a popup, bypass LLM.
+                    -- No prompt provided: Just display results in a popup, bypass LLM.
                     local Ui = require("quickllm.ui")
+
                     local Utils = require("quickllm.utils")
                     local lines = Utils.parse_lines(context_text)
                     if #lines == 0 then table.insert(lines, "No matches found for: " .. search_query) end
                     
-                    -- We return a "null" command state to signify the orchestrator handled it
                     Ui.popup(lines, "markdown", current_bufnr)
                     return nil, "", "", {}
                 end
             end
         end
+    elseif command == "explain" then
+        -- Standard 'explain' injection
+        text_selection = system_context .. text_selection
     end
 
     return command, command_args, text_selection, overrides

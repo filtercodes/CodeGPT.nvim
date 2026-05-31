@@ -113,19 +113,44 @@ vim.g.quickllm_history_opts = vim.tbl_extend("force", {
 -- Knowledge Base (Wiki) Configuration
 vim.g.quickllm_kb_db_path = vim.g.quickllm_kb_db_path or (vim.fn.stdpath("data") .. "/quickllm_kb.db")
 vim.g.quickllm_kb_folder = vim.g.quickllm_kb_folder or (vim.fn.getcwd() .. "/.quickllm_kb")
+vim.g.quickllm_kb_provider = vim.g.quickllm_kb_provider or "ollama"
 vim.g.quickllm_kb_embedding_model = vim.g.quickllm_kb_embedding_model or "nomic-embed-text"
 vim.g.quickllm_kb_embedding_dimension = vim.g.quickllm_kb_embedding_dimension or 768
 vim.g.quickllm_kb_sqlite_vec_path = vim.g.quickllm_kb_sqlite_vec_path or ""
 vim.g.quickllm_kb_style = vim.g.quickllm_kb_style or "simple" -- "simple" or "complex"
 
--- Search/Grep Options
-vim.g.quickllm_fuzz_context = vim.g.quickllm_fuzz_context or 3
+-- Project Context Configuration
+vim.g.quickllm_project_defaults = {
+    provider = "ollama",         -- Provider for project indexing
+    model = "qwen3:8b",          -- Reasoning model for init
+    auto_init = true,            -- Automatically run init if missing or stale
+    auto_check_freshness = true, -- Check for structural changes on scan/files
+}
+
+-- Search/Scan Options
+vim.g.quickllm_scan_context = vim.g.quickllm_scan_context or 3
 
 -- Default Command Templates
 vim.g.quickllm_commands_defaults = {
     ["wiki"] = {
+        provider = "knowledge_base",
         callback_type = "text_popup",
         user_message_template = "{{command_args}}",
+        allow_empty_text_selection = true,
+    },
+    ["wiki_index"] = {
+        allow_empty_text_selection = true,
+    },
+    ["wiki_save"] = {
+        allow_empty_text_selection = true,
+    },
+    ["files"] = {
+        allow_empty_text_selection = true,
+    },
+    ["scan"] = {
+        allow_empty_text_selection = true,
+    },
+    ["init"] = {
         allow_empty_text_selection = true,
     },
     ["complete"] = {

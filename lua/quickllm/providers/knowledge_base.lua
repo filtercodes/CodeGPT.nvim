@@ -129,7 +129,10 @@ DOCUMENT:
 %s
 ]], schema_content, content)
 
-    local overrides = { provider = "ollama", model = vim.g.quickllm_kb_embedding_model:match("([^:]+)") or "qwen3" }
+    local kb_provider = vim.g.quickllm_kb_provider or "ollama"
+    local kb_model = vim.g.quickllm_kb_embedding_model or "nomic-embed-text"
+
+    local overrides = { provider = kb_provider, model = kb_model }
     local Providers = require("quickllm.providers")
     local CommandsList = require("quickllm.commands_list")
     local provider = Providers.get_provider(overrides)
@@ -138,7 +141,7 @@ DOCUMENT:
     cmd_opts.extra_params = vim.tbl_extend("force", cmd_opts.extra_params or {}, { format = "json" })
 
     provider.make_call({
-        model = cmd_opts.model,
+        model = kb_model,
         messages = {{role = "user", content = prompt}},
         stream = false,
         format = "json"
@@ -155,11 +158,25 @@ end
 
 ---Generates an embedding for text.
 function KB.generate_embedding(text, cb)
-    local url = (vim.g.quickllm_ollama_url or "http://localhost:11434") .. "/api/embeddings"
-    local model = vim.g.quickllm_kb_embedding_model
+    local kb_provider = vim.g.quickllm_kb_provider or "ollama"
+    local kb_model = vim.g.quickllm_kb_embedding_model or "nomic-embed-text"
+    
+    local url = ""
+    local body = {}
+
+    if kb_provider == "ollama" then
+        url = (vim.g.quickllm_ollama_url or "http://localhost:11434") .. "/api/embeddings"
+        body = { model = kb_model, prompt = text }
+    else
+        -- Placeholder for other providers like OpenAI
+        -- if kb_provider == "openai" then ... end
+        vim.notify("KB Error: Embeddings currently only supported via Ollama.", vim.log.levels.ERROR)
+        cb(nil, "Unsupported provider: " .. kb_provider)
+        return
+    end
     
     curl.post(url, {
-        body = vim.json.encode({ model = model, prompt = text }),
+        body = vim.json.encode(body),
         callback = function(res)
             if res.status ~= 200 then
                 vim.schedule(function() cb(nil, "Embedding Error: " .. res.status) end)
@@ -179,13 +196,13 @@ function KB.generate_embedding(text, cb)
 end
 
 ---Main indexing entry point.
-function KB.index_kb()
+function KB.wiki_index()
     local now = os.time()
     
     -- SAFETY: If indexing has been "active" for more than 5 minutes without progress, 
     -- assume it crashed and allow reset.
     if is_indexing and (now - last_progress_time < 300) then
-        vim.notify("Indexing already in progress.", vim.log.levels.WARN)
+        vim.notify("Index already in progress.", vim.log.levels.WARN)
         return
     end
 
@@ -204,7 +221,7 @@ function KB.index_kb()
     index_stats.processed = 0
     index_stats.start_time = vim.loop.now()
 
-    vim.notify(string.format("Starting Knowledge Base indexing (%d files, Mode: %s)...", #files, vim.g.quickllm_kb_style), vim.log.levels.INFO)
+    vim.notify(string.format("Starting Knowledge Base wiki_index (%d files, Mode: %s)...", #files, vim.g.quickllm_kb_style), vim.log.levels.INFO)
 
     KB.process_next_file(files, 1)
 end
@@ -222,7 +239,7 @@ end
 function KB.process_next_file(files, index)
     if index > #files then
         is_indexing = false
-        vim.notify(string.format("Indexing Complete! Processed %d files.", #files), vim.log.levels.INFO)
+        vim.notify(string.format("Index Complete! Processed %d files.", #files), vim.log.levels.INFO)
         return
     end
 
@@ -432,7 +449,7 @@ end
 ---Saves content (selection or buffer) to a new markdown file in the KB folder.
 ---@param filename string The target filename.
 ---@param selection string? The selected text (optional).
-function KB.save_to_wiki(filename, selection)
+function KB.wiki_save(filename, selection)
     local kb_folder = vim.g.quickllm_kb_folder
     if vim.fn.isdirectory(kb_folder) == 0 then
         vim.fn.mkdir(kb_folder, "p")
