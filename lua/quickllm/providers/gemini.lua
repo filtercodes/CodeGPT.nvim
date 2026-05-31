@@ -42,13 +42,39 @@ function GeminiProvider.make_request(command, cmd_opts, command_args, text_selec
     local request = {
         contents = messages_for_api,
         model = cmd_opts.model,
-        generationConfig = {}
     }
 
+    -- 1. Construct generationConfig only if needed
+    local gen_config = {}
+    local has_config = false
+
     if cmd_opts.thinking then
-        request.generationConfig.thinking_config = {
+        gen_config.thinking_config = {
             include_thoughts = true
         }
+        has_config = true
+    end
+
+    if cmd_opts.temperature then
+        gen_config.temperature = cmd_opts.temperature
+        has_config = true
+    end
+
+    if cmd_opts.max_tokens then
+        gen_config.maxOutputTokens = cmd_opts.max_tokens
+        has_config = true
+    end
+
+    -- Add extra_params to generationConfig if they match Gemini's spec
+    if cmd_opts.extra_params then
+        for k, v in pairs(cmd_opts.extra_params) do
+            gen_config[k] = v
+            has_config = true
+        end
+    end
+
+    if has_config then
+        request.generationConfig = gen_config
     end
 
     if cmd_opts.is_search_command then

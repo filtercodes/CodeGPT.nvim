@@ -91,8 +91,8 @@ vim.g.quickllm_popup_layout = {
   relative = "editor",
   position = "50%",
   size = {
-    width = "80%",
-    height = "60%"
+    width = "100%",
+    height = "80%"
   }
 }
 
@@ -110,22 +110,32 @@ vim.g.quickllm_history_opts = vim.tbl_extend("force", {
     summarize_history = true,
 }, vim.g.quickllm_history_opts or {})
 
+-- Knowledge Base (Wiki) Configuration
+vim.g.quickllm_kb_db_path = vim.g.quickllm_kb_db_path or (vim.fn.stdpath("data") .. "/quickllm_kb.db")
+vim.g.quickllm_kb_folder = vim.g.quickllm_kb_folder or (vim.fn.getcwd() .. "/.quickllm_kb")
+vim.g.quickllm_kb_embedding_model = vim.g.quickllm_kb_embedding_model or "nomic-embed-text"
+vim.g.quickllm_kb_embedding_dimension = vim.g.quickllm_kb_embedding_dimension or 768
+vim.g.quickllm_kb_sqlite_vec_path = vim.g.quickllm_kb_sqlite_vec_path or ""
+vim.g.quickllm_kb_style = vim.g.quickllm_kb_style or "simple" -- "simple" or "complex"
+
+-- Search/Grep Options
+vim.g.quickllm_fuzz_context = vim.g.quickllm_fuzz_context or 3
+
 -- Default Command Templates
 vim.g.quickllm_commands_defaults = {
+    ["wiki"] = {
+        callback_type = "text_popup",
+        user_message_template = "{{command_args}}",
+        allow_empty_text_selection = true,
+    },
     ["complete"] = {
         user_message_template =
         "I have the following {{language}} code snippet: ```{{filetype}}\n{{text_selection}}```\nComplete the rest. Use best practices and write really good documentation. {{language_instructions}} Only return the code snippet and nothing else.",
         language_instructions = {
             ["*"] = "Use modern {{language}} syntax and features.",
         },
-    },
-    ["generate"] = {
-        user_message_template =
-        "Write code in {{language}} using best practices and write really good documentation. {{language_instructions}} Only return the code snippet and nothing else. {{command_args}}",
-        language_instructions = {
-            ["*"] = "Use modern {{language}} syntax and features.",
-        },
-        allow_empty_text_selection = true,
+        callback_type = "replace_lines",
+        thinking = false,
     },
     ["edit"] = {
         user_message_template =
@@ -133,15 +143,11 @@ vim.g.quickllm_commands_defaults = {
         language_instructions = {
             ["*"] = "Use modern {{language}} syntax and features.",
         },
+        callback_type = "replace_lines",
     },
     ["explain"] = {
         user_message_template =
         "Explain the following {{language}} code: ```{{filetype}}\n{{text_selection}}``` Explain as if you were explaining to another developer.",
-        callback_type = "text_popup",
-    },
-    ["question"] = {
-        user_message_template =
-        "I have a question about the following {{language}} code: ```{{filetype}}\n{{text_selection}}``` {{command_args}}",
         callback_type = "text_popup",
     },
     ["debug"] = {
@@ -155,6 +161,7 @@ vim.g.quickllm_commands_defaults = {
         language_instructions = {
             ["*"] = "Use the standard documentation style (e.g. Docstrings, JSDoc, Doxygen) typical for {{language}}.",
         },
+        callback_type = "replace_lines",
     },
     ["opt"] = {
         user_message_template =
@@ -162,6 +169,7 @@ vim.g.quickllm_commands_defaults = {
         language_instructions = {
             ["*"] = "Use modern {{language}} syntax and best practices.",
         },
+        callback_type = "replace_lines",
     },
     ["tests"] = {
         user_message_template =
@@ -170,6 +178,7 @@ vim.g.quickllm_commands_defaults = {
         language_instructions = {
             ["*"] = "Use modern {{language}} syntax. Generate unit tests using a standard testing framework appropriate for {{language}}.",
         },
+        callback_type = "code_popup",
     },
     ["chat"] = {
         user_message_template = "{{command_args}}",

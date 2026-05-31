@@ -7,6 +7,12 @@ local Utils = require("quickllm.utils")
 local Commands = {}
 
 function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts, overrides)
+    -- Allow overriding the user message saved to history (to avoid bloating with large file context)
+    local history_user_message = nil
+    if overrides and overrides.history_user_message then
+        history_user_message = overrides.history_user_message
+    end
+
 	if cmd_opts == nil then
 		cmd_opts = CommandsList.get_cmd_opts(command, overrides)
 	end
@@ -148,7 +154,7 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
                   
                   -- Add to history only if we have content
                   if full_text and full_text ~= "" then
-                      History.add_message(bufnr, "user", user_message_text)
+                      History.add_message(bufnr, "user", history_user_message or user_message_text)
                       History.add_message(bufnr, "assistant", full_text)
                   end
     
@@ -181,6 +187,9 @@ function Commands.run_cmd(command, command_args, text_selection, bufnr, cmd_opts
   else
       -- Legacy / Non-Streaming Mode
       local new_callback = function(lines)
+          -- Note: handle_response in providers usually handles history,
+          -- but we pass the override info if possible.
+          -- For now, most providers are streaming.
           cmd_opts.callback(lines, bufnr, start_row, start_col, end_row, end_col)
       end
       provider.make_call(request, user_message_text, new_callback, bufnr)

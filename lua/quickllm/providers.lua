@@ -4,6 +4,7 @@ local OllaMaProvider = require("quickllm.providers.ollama")
 local GroqProvider = require("quickllm.providers.groq")
 local GeminiProvider = require("quickllm.providers.gemini")
 local LocalGroundingProvider = require("quickllm.providers.local_grounding")
+local KnowledgeBaseProvider = require("quickllm.providers.knowledge_base")
 
 local Providers = {}
 
@@ -28,6 +29,8 @@ function Providers.get_provider(overrides)
         return GeminiProvider
     elseif provider == "local_grounding" then
         return LocalGroundingProvider
+    elseif provider == "knowledge_base" or provider == "wiki" then
+        return KnowledgeBaseProvider
     else
         error("Provider not found: " .. provider)
     end

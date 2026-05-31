@@ -108,6 +108,25 @@ function QuickllmModule.run_cmd(opts)
         return
     end
 
+    -- Handle `wiki_index` as a special case
+    if command == "wiki_index" then
+        local KB = require("quickllm.providers.knowledge_base")
+        KB.index_kb()
+        return
+    end
+
+    -- Handle `wiki_save` as a special case
+    if command == "wiki_save" then
+        local KB = require("quickllm.providers.knowledge_base")
+        local filename = opts.fargs[2]
+        if not filename then
+            vim.notify("Usage: :Chat wiki_save <filename.md>", vim.log.levels.ERROR)
+            return
+        end
+        KB.save_to_wiki(filename, text_selection)
+        return
+    end
+
     local cmd_opts = nil
     local overrides = nil
     
@@ -136,33 +155,46 @@ function QuickllmModule.run_cmd(opts)
         end
     end
 
-    -- If special commands were used with arguments, we want them to fall through to chat/code_edit guessing logic
-    -- and prevent them from fetching default options.
-    if not ((command == "clear" or is_recall or is_undo) and #opts.fargs > 1) then
+    -- 1. Handle Context Engine Commands (read/files/fuzz/grep)
+    if command == "read" or command == "files" or command == "fuzz" or command == "grep" then
+        local ContextEngine = require("quickllm.context_engine")
+        command, command_args, text_selection, overrides = ContextEngine.handle_context_command(command, opts.fargs, current_bufnr)
+
+        -- Early return if the command was handled internally (e.g. grep results only)
+        if command == nil then return end
+
+        -- Refresh cmd_opts after command potentially changed (e.g. read -> explain)
         cmd_opts = CommandsList.get_cmd_opts(command, overrides)
-    end
-
-    -- If the detected command doesn't support arguments but arguments were provided,
-    -- treat it as a general chat message instead.
-    if cmd_opts ~= nil and not has_command_args(cmd_opts) and #opts.fargs > 1 then
-        cmd_opts = nil
-    end
-
-    if cmd_opts ~= nil then
-        -- An explicit command was used (e.g., :Chat explain, :Chat tests)
-        if has_command_args(cmd_opts) then
-            command_args = table.concat(opts.fargs, " ", 2)
-        else
-            command_args = ""
-        end
-    elseif is_ui_window then
-        -- No explicit command, but we are in a UI window. Default to chat continuation
-        command = "chat"
-        -- command_args is already the full input
-        text_selection = "" -- Ignore any selection in the popup
     else
-        -- No explicit command, and we are in a normal buffer.
-        command = "chat" -- Default to chat
+        -- 2. Standard Command Detection
+        -- If special commands were used with arguments, we want them to fall through to chat/code_edit guessing logic
+        -- and prevent them from fetching default options.
+        if not ((command == "clear" or is_recall or is_undo) and #opts.fargs > 1) then
+            cmd_opts = CommandsList.get_cmd_opts(command, overrides)
+        end
+
+        -- If the detected command doesn't support arguments but arguments were provided,
+        -- treat it as a general chat message instead.
+        if cmd_opts ~= nil and not has_command_args(cmd_opts) and #opts.fargs > 1 then
+            cmd_opts = nil
+        end
+
+        if cmd_opts ~= nil then
+            -- An explicit command was used (e.g., :Chat explain, :Chat tests)
+            if has_command_args(cmd_opts) then
+                command_args = table.concat(opts.fargs, " ", 2)
+            else
+                command_args = ""
+            end
+        elseif is_ui_window then
+            -- No explicit command, but we are in a UI window. Default to chat continuation
+            command = "chat"
+            -- command_args is already the full input
+            text_selection = "" -- Ignore any selection in the popup
+        else
+            -- No explicit command, and we are in a normal buffer.
+            command = "chat" -- Default to chat
+        end
     end
 
     if command == nil or command == "" then

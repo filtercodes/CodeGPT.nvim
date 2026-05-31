@@ -9,15 +9,18 @@ local command_descriptions = {
     complete = "Completes the current code selection. Useful for finishing a function or block of code based on the context provided by the selection.",
     edit = "Modifies the selected code based on your instructions. Use this to refactor, change logic, or apply specific transformations to existing code.",
     explain = "Provides a detailed explanation of the selected code. It breaks down the logic and explains it in simple terms, useful for understanding complex legacy code.",
+    read = "Reads multiple files (supports wildcards) and passes their content as the context for your prompt.",
+    grep = "Performs a fuzzy search across files for a query and sends the chunks to the LLM.",
+    wiki = "Performs a semantic search across your local Knowledge Base using Hierarchical RAG (Map & Territory).",
+    wiki_index = "Scans your KB folder and performs a 'one-pass' indexing with LLM-generated summaries and vectors.",
+    wiki_save = "Saves your current buffer or visual selection directly into the Knowledge Base for future retrieval.",
     doc = "Generates documentation for the selected code. It produces function/method documentation (e.g., Javadoc, Doxygen) following best practices for the language.",
     tests = "Generates unit tests for the selected code. It attempts to use standard testing frameworks appropriate for the language (e.g., JUnit for Java, gtest for C++).",
     opt = "Suggests optimizations for the selected code. It looks for performance improvements or cleaner ways to implement the same logic.",
     debug = "Analyzes the selected code for potential bugs or issues. It acts as a static analysis tool to spot logical errors or common pitfalls.",
-    question = "Allows you to ask a specific question about the selected code. Unlike 'chat', this focuses context specifically on the selection.",
-    generate = "Generates new code from scratch based on a prompt. Use this when you want to create a new function or class without starting from existing code.",
-    clear = "Clears the chat history for the current buffer. This resets the conversation context.",
     recall = "Displays the last response from the assistant in a popup window. Accepts an optional number to go further back (e.g., `:Chat recall 2` for the second-to-last response).",
     undo = "Removes the last exchange (your prompt and the assistant's response) from the chat history. Useful for undoing a bad conversation turn.",
+    clear = "Clears the chat history for the current buffer. This resets the conversation context.",
     help = "Displays this help file, listing available commands, keybindings, and configuration options.",
 }
 
@@ -42,9 +45,11 @@ function M.get_help_lines()
     table.insert(lines, "## Commands")
 
     local commnds_listed = {
-        "chat", "search", "complete", "edit", "explain", "doc", "tests",
-        "opt", "debug", "question", "generate", "clear",
-        "recall", "undo", "help"
+        "chat", "search", "complete", "edit",
+        "explain", "read", "grep",
+        "wiki", "wiki_index", "wiki_save",
+        "doc", "tests", "opt", "debug",
+        "recall", "undo", "clear", "help"
     }
 
     local all_commands = {}
@@ -124,7 +129,7 @@ function M.get_help_lines()
     table.insert(lines, "Time in seconds before the chat history expires and is cleared. Default: `900` (15 minutes).")
     table.insert(lines, "")
     table.insert(lines, "`vim.g.quickllm_chat_history_time_based_expiry` (boolean)")
-    table.insert(lines, "Whether to auto-clear history after the timeout. Default: `true`.")
+    table.insert(lines, "Whether to auto-clear history after the timeout. Default: `false`.")
     table.insert(lines, "")
 
     table.insert(lines, "### UI Customization")
@@ -180,7 +185,6 @@ function M.get_help_lines()
     table.insert(lines, "1. Write a function signature or select an existing class.")
     table.insert(lines, "2. Run `:Chat tests`.")
     table.insert(lines, "3. Copy the generated tests into your test file.")
-    table.insert(lines, "4. If you need a specific framework, use: `:Chat generate unit tests for this using Vitest`.")
     table.insert(lines, "")
 
     table.insert(lines, "### 3. The Legacy Code Understanding")
