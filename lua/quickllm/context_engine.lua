@@ -138,7 +138,8 @@ end
 function M.scan_search(files, query, context_lines)
     local results = ""
     -- Use global variable for context or default to 3
-    local ctx = context_lines or vim.g.quickllm_scan_context or 3
+    local kb_opts = vim.g.quickllm_kb_opts
+    local ctx = context_lines or kb_opts.scan_context or 3
     
     for _, path in ipairs(files) do
         local lines = vim.fn.readfile(path)
@@ -202,9 +203,11 @@ function M.handle_context_command(command, fargs, current_bufnr, current_selecti
     -- Project Context Injection
     local project_map = ProjectContext.get_active_context()
     local system_context = ""
+    local kb_opts = vim.g.quickllm_kb_opts
+
     if project_map then
         system_context = "\n[SYSTEM PROJECT CONTEXT]\n" .. project_map .. "\n---\n"
-        if vim.g.quickllm_project_defaults and vim.g.quickllm_project_defaults.auto_check_freshness then
+        if kb_opts and kb_opts.auto_check_freshness then
             ProjectContext.check_freshness()
         end
     end

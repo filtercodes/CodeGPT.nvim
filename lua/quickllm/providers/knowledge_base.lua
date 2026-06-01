@@ -20,8 +20,9 @@ local index_stats = {
 ---@param load_vec boolean? Whether to attempt loading the sqlite-vec extension.
 ---@return table results The output lines from the command.
 function KB.run_sql(sql, load_vec)
-    local db_path = vim.g.quickllm_kb_db_path
-    local vec_path = vim.g.quickllm_kb_sqlite_vec_path
+    local kb_opts = vim.g.quickllm_kb_opts
+    local db_path = kb_opts.db_path
+    local vec_path = kb_opts.sqlite_vec_path
     
     local function execute()
         local tmp = vim.fn.tempname()
@@ -61,6 +62,7 @@ end
 
 ---Initializes the SQLite database with the hierarchical schema.
 function KB.init_db()
+    local kb_opts = vim.g.quickllm_kb_opts
     if vim.fn.executable("sqlite3") ~= 1 then
         vim.notify("Knowledge Base Error: 'sqlite3' executable not found.", vim.log.levels.ERROR)
         return false
@@ -87,9 +89,20 @@ function KB.init_db()
     
     KB.run_sql(schema)
 
-    local vec_path = vim.g.quickllm_kb_sqlite_vec_path
+    local vec_path = kb_opts.sqlite_vec_path
     if vec_path ~= "" and vim.fn.filereadable(vec_path) == 1 then
-        local dim = vim.g.quickllm_kb_embedding_dimension or 768
+        local dim = kb_opts.dimension or 768
+
+        -- VECTOR DIMENSION GUARD
+        local existing_schema = KB.run_sql("SELECT sql FROM sqlite_master WHERE type='table' AND name='summaries_vec';", true)
+        if #existing_schema > 0 then
+            local current_dim_match = existing_schema[1]:match("FLOAT%[(%d+)%]")
+            if current_dim_match and tonumber(current_dim_match) ~= dim then
+                vim.notify(string.format("KB Error: Embedding dimension mismatch. DB has %s, Config has %d. Please delete %s and re-index.", current_dim_match, dim, kb_opts.db_path), vim.log.levels.ERROR)
+                return false
+            end
+        end
+
         local vec_schema = string.format([[
             CREATE VIRTUAL TABLE IF NOT EXISTS summaries_vec USING vec0(
                 id INTEGER PRIMARY KEY,
@@ -108,7 +121,8 @@ end
 
 ---Calls the LLM to act as a Librarian and summarize the document.
 function KB.get_librarian_metadata(content, cb)
-    local kb_folder = vim.g.quickllm_kb_folder
+    local kb_opts = vim.g.quickllm_kb_opts
+    local kb_folder = kb_opts.wiki_folder
     local schema_path = kb_folder .. "/schema.md"
     local schema_content = ""
     if vim.fn.filereadable(schema_path) == 1 then
@@ -129,8 +143,8 @@ DOCUMENT:
 %s
 ]], schema_content, content)
 
-    local kb_provider = vim.g.quickllm_kb_provider or "ollama"
-    local kb_model = vim.g.quickllm_kb_embedding_model or "nomic-embed-text"
+    local kb_provider = kb_opts.provider or "ollama"
+    local kb_model = kb_opts.model or "nomic-embed-text"
 
     local overrides = { provider = kb_provider, model = kb_model }
     local Providers = require("quickllm.providers")
@@ -158,45 +172,175 @@ end
 
 ---Generates an embedding for text.
 function KB.generate_embedding(text, cb)
-    local kb_provider = vim.g.quickllm_kb_provider or "ollama"
-    local kb_model = vim.g.quickllm_kb_embedding_model or "nomic-embed-text"
+    local kb_opts = vim.g.quickllm_kb_opts
+    local kb_provider = kb_opts.provider or "ollama"
+    local kb_model = kb_opts.model or "nomic-embed-text"
     
     local url = ""
     local body = {}
+    local headers = { ["Content-Type"] = "application/json" }
 
     if kb_provider == "ollama" then
         url = (vim.g.quickllm_ollama_url or "http://localhost:11434") .. "/api/embeddings"
         body = { model = kb_model, prompt = text }
+    elseif kb_provider == "openai" then
+        url = "https://api.openai.com/v1/embeddings"
+        headers["Authorization"] = "Bearer " .. (vim.env.OPENAI_API_KEY or "")
+        body = { model = kb_model, input = text }
+    elseif kb_provider == "gemini" then
+        url = string.format("https://generativelanguage.googleapis.com/v1beta/models/%s:embedContent", kb_model)
+        headers["x-goog-api-key"] = vim.env.GEMINI_API_KEY or ""
+        body = { model = "models/" .. kb_model, content = { parts = { { text = text } } } }
     else
-        -- Placeholder for other providers like OpenAI
-        -- if kb_provider == "openai" then ... end
-        vim.notify("KB Error: Embeddings currently only supported via Ollama.", vim.log.levels.ERROR)
+        vim.notify("KB Error: Embeddings currently only supported via Ollama, OpenAI, Gemini.", vim.log.levels.ERROR)
         cb(nil, "Unsupported provider: " .. kb_provider)
         return
     end
     
-    curl.post(url, {
-        body = vim.json.encode(body),
-        callback = function(res)
-            if res.status ~= 200 then
-                vim.schedule(function() cb(nil, "Embedding Error: " .. res.status) end)
-                return
+    local function make_request(retries)
+        curl.post(url, {
+            headers = headers,
+            body = vim.json.encode(body),
+            callback = function(res)
+                if res.status == 429 and retries > 0 then
+                    vim.defer_fn(function() make_request(retries - 1) end, 2000)
+                    return
+                elseif res.status ~= 200 then
+                    vim.schedule(function() cb(nil, "Embedding Error: " .. res.status .. " " .. tostring(res.body)) end)
+                    return
+                end
+
+                local ok, json = pcall(vim.json.decode, res.body)
+                if ok and json then
+                    local embedding = nil
+                    if kb_provider == "ollama" and json.embedding then
+                        embedding = json.embedding
+                    elseif kb_provider == "openai" and json.data and json.data[1] then
+                        embedding = json.data[1].embedding
+                    elseif kb_provider == "gemini" and json.embedding and json.embedding.values then
+                        embedding = json.embedding.values
+                    end
+
+                    if embedding then
+                        vim.schedule(function() cb(embedding) end)
+                    else
+                        vim.schedule(function() cb(nil, "Failed to parse embedding response structure") end)
+                    end
+                else
+                    vim.schedule(function() cb(nil, "Failed to decode JSON embedding response") end)
+                end
+            end,
+            on_error = function(err)
+                if retries > 0 then
+                    vim.defer_fn(function() make_request(retries - 1) end, 2000)
+                else
+                    vim.schedule(function() cb(nil, "Curl Error: " .. tostring(err)) end)
+                end
             end
-            local ok, json = pcall(vim.json.decode, res.body)
-            if ok and json and json.embedding then
-                vim.schedule(function() cb(json.embedding) end)
-            else
-                vim.schedule(function() cb(nil, "Failed to parse embedding response") end)
+        })
+    end
+    make_request(3)
+end
+
+---Runs the Global Auditor to find anomalies and populates the Quickfix list.
+function KB.wiki_lint()
+    local kb_opts = vim.g.quickllm_kb_opts
+    if not KB.init_db() then return end
+    local vec_path = kb_opts.sqlite_vec_path
+    local has_vec = vec_path ~= "" and vim.fn.filereadable(vec_path) == 1
+
+    local qf_items = {}
+    vim.notify("Running Global Auditor...", vim.log.levels.INFO)
+
+    -- 1. Anomaly: Orphan Detection
+    -- Find files whose basename is not mentioned in any OTHER file's content
+    local orphan_sql = [[
+        SELECT d.filepath, d.id
+        FROM documents d
+    ]]
+    local all_docs = KB.run_sql(orphan_sql)
+    for _, row in ipairs(all_docs) do
+        local parts = vim.split(row, "|")
+        local filepath = parts[1]
+        local id = parts[2]
+        if filepath and id then
+            local basename = vim.fn.fnamemodify(filepath, ":t")
+            local escaped_basename = basename:gsub("'", "''")
+            local mentions_sql = string.format([[
+                SELECT COUNT(*) FROM chunk_content 
+                WHERE document_id != %s 
+                AND content LIKE '%%%s%%';
+            ]], id, escaped_basename)
+
+            local count_res = KB.run_sql(mentions_sql)
+            if #count_res > 0 and tonumber(count_res[1]) == 0 then
+                table.insert(qf_items, {
+                    filename = filepath,
+                    lnum = 1,
+                    text = "[Orphan] No other document mentions this file."
+                })
             end
-        end,
-        on_error = function(err)
-            vim.schedule(function() cb(nil, "Curl Error: " .. tostring(err)) end)
         end
-    })
+    end
+
+    -- 2. Anomaly: Shadow Concepts
+    if has_vec then
+        local shadow_sql = [[
+            SELECT d1.filepath, d2.filepath, d1.schema_links, d2.schema_links
+            FROM documents d1
+            JOIN summaries_vec s1 ON d1.id = s1.id
+            JOIN summaries_vec s2 ON s1.id != s2.id
+            JOIN documents d2 ON s2.id = d2.id
+            WHERE vec_distance_cosine(s1.embedding, s2.embedding) < 0.15
+            AND d1.id < d2.id;
+        ]]
+        local pairs = KB.run_sql(shadow_sql, true)
+        for _, row in ipairs(pairs) do
+            local parts = vim.split(row, "|")
+            if #parts >= 4 then
+                local file1 = parts[1]
+                local file2 = parts[2]
+                local links1 = parts[3]
+                local links2 = parts[4]
+                local ok1, parsed1 = pcall(vim.json.decode, links1)
+                local ok2, parsed2 = pcall(vim.json.decode, links2)
+
+                if ok1 and ok2 and type(parsed1) == "table" and type(parsed2) == "table" then
+                    local shared = 0
+                    for _, l1 in ipairs(parsed1) do
+                        for _, l2 in ipairs(parsed2) do
+                            if type(l1) == "string" and type(l2) == "string" and l1:lower() == l2:lower() then
+                                shared = shared + 1
+                            end
+                        end
+                    end
+
+                    if shared == 0 then
+                        table.insert(qf_items, {
+                            filename = file1,
+                            lnum = 1,
+                            text = string.format("[Shadow Concept] Highly similar to %s but shares 0 schema links.", vim.fn.fnamemodify(file2, ":t"))
+                        })
+                    end
+                end
+            end
+        end
+    end
+
+    if #qf_items > 0 then
+        vim.fn.setqflist(qf_items, 'r')
+        vim.cmd("copen")
+        vim.notify(string.format("Found %d anomalies. Quickfix list updated.", #qf_items), vim.log.levels.WARN)
+    else
+        vim.fn.setqflist({}, 'r')
+        vim.cmd("cclose")
+        vim.notify("Knowledge Base is healthy! No anomalies found.", vim.log.levels.INFO)
+    end
 end
 
 ---Main indexing entry point.
 function KB.wiki_index()
+    local kb_opts = vim.g.quickllm_kb_opts
     local now = os.time()
     
     -- SAFETY: If indexing has been "active" for more than 5 minutes without progress, 
@@ -208,7 +352,7 @@ function KB.wiki_index()
 
     if not KB.init_db() then return end
 
-    local kb_folder = vim.g.quickllm_kb_folder
+    local kb_folder = kb_opts.wiki_folder
     local files = vim.fn.globpath(kb_folder, "**/*.md", true, true)
     if #files == 0 then
         vim.notify("No Markdown files found in KB folder.", vim.log.levels.INFO)
@@ -221,7 +365,7 @@ function KB.wiki_index()
     index_stats.processed = 0
     index_stats.start_time = vim.loop.now()
 
-    vim.notify(string.format("Starting Knowledge Base wiki_index (%d files, Mode: %s)...", #files, vim.g.quickllm_kb_style), vim.log.levels.INFO)
+    vim.notify(string.format("Starting Knowledge Base wiki_index (%d files, Mode: %s)...", #files, kb_opts.style), vim.log.levels.INFO)
 
     KB.process_next_file(files, 1)
 end
@@ -237,6 +381,7 @@ end
 
 ---Orchestrates the one-pass indexing for a file.
 function KB.process_next_file(files, index)
+    local kb_opts = vim.g.quickllm_kb_opts
     if index > #files then
         is_indexing = false
         vim.notify(string.format("Index Complete! Processed %d files.", #files), vim.log.levels.INFO)
@@ -256,21 +401,11 @@ function KB.process_next_file(files, index)
     local content_lines = vim.fn.readfile(path)
     local content = table.concat(content_lines, "\n")
     local hash = ContextEngine.get_file_hash(path)
-    local style = vim.g.quickllm_kb_style
+    local style = kb_opts.style
     
-    -- IMPROVED CHUNKING: Split by headers but keep them in the chunk
-    local chunks = {}
-    local current_chunk = ""
-    for _, line in ipairs(content_lines) do
-        if line:match("^#") and current_chunk ~= "" then
-            table.insert(chunks, vim.trim(current_chunk))
-            current_chunk = line .. "\n"
-        else
-            current_chunk = current_chunk .. line .. "\n"
-        end
-    end
-    if current_chunk ~= "" then table.insert(chunks, vim.trim(current_chunk)) end
-    if #chunks == 0 then table.insert(chunks, content) end
+    -- CHUNKING: Use the structure-aware chunker module
+    local Chunker = require("quickllm.chunker")
+    local chunks = Chunker.chunk_file(path)
 
     -- ATOMIC CLEANUP: Reverse order to avoid orphans
     local cleanup_sql = string.format([[
@@ -335,6 +470,12 @@ function KB.process_next_file(files, index)
                 table.insert(batch_sqls, "COMMIT;")
                 KB.run_sql(table.concat(batch_sqls, "\n"), true)
 
+                -- NEIGHBORHOOD WEAVING (Phase 4 Step 3)
+                if style == "complex" and summary ~= "" then
+                    local Orchestrator = require("quickllm.wiki_orchestrator")
+                    Orchestrator.weave_neighborhood(path, content, summary)
+                end
+
                 index_stats.processed = index
                 vim.defer_fn(function() KB.process_next_file(files, index + 1) end, 10)
             end
@@ -373,9 +514,10 @@ end
 
 ---Performs Hybrid Hierarchical Search.
 function KB.make_call(payload, user_msg, cb, bufnr)
+    local kb_opts = vim.g.quickllm_kb_opts
     local query = payload.query
-    local style = vim.g.quickllm_kb_style
-    local vec_path = vim.g.quickllm_kb_sqlite_vec_path
+    local style = kb_opts.style
+    local vec_path = kb_opts.sqlite_vec_path
     local has_vec = vec_path ~= "" and vim.fn.filereadable(vec_path) == 1
 
     KB.generate_embedding(query, function(query_vec, err)
@@ -386,14 +528,15 @@ function KB.make_call(payload, user_msg, cb, bufnr)
             
             if style == "complex" then
                 -- 1. Search Summaries (The Map) with Links
-                -- We use a separator for multi-column parsing from CLI
+                -- We use vec_distance_cosine for maximum accuracy
                 local summary_sql = string.format([[
                     SELECT summary_text || '@@@' || schema_links || '@@@' || filepath
                     FROM documents d
                     JOIN summaries_vec s ON d.id = s.id
-                    WHERE s.embedding MATCH vec_f32('%s') AND k = 2
-                    ORDER BY distance;
-                ]], vec_json)
+                    WHERE vec_distance_cosine(s.embedding, vec_f32('%s')) < 1.0
+                    ORDER BY vec_distance_cosine(s.embedding, vec_f32('%s'))
+                    LIMIT 2;
+                ]], vec_json, vec_json)
                 local map_data = KB.run_sql(summary_sql, true)
                 
                 if #map_data > 0 then 
@@ -418,9 +561,10 @@ function KB.make_call(payload, user_msg, cb, bufnr)
                 FROM chunk_content c
                 JOIN documents d ON c.document_id = d.id
                 JOIN chunks_vec v ON c.id = v.id
-                WHERE v.embedding MATCH vec_f32('%s') AND k = 5
-                ORDER BY distance;
-            ]], vec_json)
+                WHERE vec_distance_cosine(v.embedding, vec_f32('%s')) < 1.0
+                ORDER BY vec_distance_cosine(v.embedding, vec_f32('%s'))
+                LIMIT 5;
+            ]], vec_json, vec_json)
             local territory_data = KB.run_sql(chunk_sql, true)
             
             if #territory_data > 0 then 

@@ -52,31 +52,36 @@ function Utils.replace_lines(lines, bufnr, start_row, start_col, end_row, end_co
     vim.api.nvim_buf_set_text(bufnr, start_row, start_col, end_row, end_col, lines)
 end
 
-local function get_code_block(lines2)
-    local code_block = {}
-    local in_code_block = false
-    for _, line in ipairs(lines2) do
-        if line:match("^```") then
-            in_code_block = not in_code_block
-        elseif in_code_block then
-            table.insert(code_block, line)
-        end
-    end
-    return code_block
-end
+local function get_code_block(text)
+    local ok, parser = pcall(vim.treesitter.get_string_parser, text, "markdown")
+    if not ok or not parser then return nil end
 
-local function contains_code_block(lines2)
-    for _, line in ipairs(lines2) do
-        if line:match("^```") then
-            return true
+    local tree = parser:parse()[1]
+    local root = tree:root()
+
+    -- Query for fenced code blocks and their content
+    local query = vim.treesitter.query.parse("markdown", "(fenced_code_block (code_fence_content) @code)")
+    local code_contents = {}
+
+    for _, node, _ in query:iter_captures(root, text, 0, -1) do
+        local content = vim.treesitter.get_node_text(node, text)
+        for _, line in ipairs(vim.split(content, "\n")) do
+            table.insert(code_contents, line)
+        end
+        -- Return the first valid code block content found
+        if #code_contents > 0 then
+            return code_contents
         end
     end
-    return false
+
+    return nil
 end
 
 function Utils.trim_to_code_block(lines)
-    if contains_code_block(lines) then
-        return get_code_block(lines)
+    local text = table.concat(lines, "\n")
+    local code = get_code_block(text)
+    if code then
+        return code
     end
     return lines
 end
@@ -132,6 +137,40 @@ function Utils.remove_trailing_whitespace(lines)
         lines[i] = line:gsub("%s+$", "")
     end
     return lines
+end
+
+---Removes <think> tags and their content from a string (handles multi-line and multiple blocks).
+---@param text string
+---@return string
+function Utils.strip_thinking_tags(text)
+    if not text then return "" end
+
+    local result = ""
+    local last_pos = 1
+
+    while true do
+        local start_idx = text:find("<think>", last_pos, true)
+        if not start_idx then
+            result = result .. text:sub(last_pos)
+            break
+        end
+
+        result = result .. text:sub(last_pos, start_idx - 1)
+
+        local end_idx = text:find("</think>", start_idx + 7, true)
+        if not end_idx then
+            -- Orphaned start tag: we skip the rest as it's likely a thinking block in progress
+            break
+        end
+
+        last_pos = end_idx + 8
+    end
+
+    -- Cleanup remaining orphaned end tags (safety)
+    result = result:gsub("</think>", "")
+
+    -- Trim leading and trailing whitespace/newlines
+    return result:match("^%s*(.-)%s*$") or ""
 end
 
 

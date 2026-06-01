@@ -6,10 +6,17 @@ No Agentic Overhead - QuickLLM follows the philosophy: "developer is the agent o
 
 Focus is on context management, knowledge extraction and using direct commands to call tools and self-orchestrate the AI development workflow.
 
-## Installation
+### Installation
+
+| | Requirements |
+|-------------|-------------|
+| Neovim >= 0.12.0 | Native support for all features (including Tree-sitter for Wiki parsing). |
+| Neovim 0.10.x - 0.11.x | Requires manual installation of [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) (with `markdown` and `markdown_inline` parsers). |
+| External (Wiki only) | `sqlite3` CLI and the `sqlite-vec` shared library (see [setup guide](#vector-search-setup-sqlite-vec)). |
+| Dependencies | [plenary.nvim](https://github.com/nvim-lua/plenary.nvim) and [nui.nvim](https://github.com/MunifTanjim/nui.nvim). |
 
 * Set environment variable for your preferred API key e.g. `ANTHROPIC_API_KEY` [Claude API key](https://platform.claude.com/settings/workspaces/default/keys).
-* The plugins `plenary` and `nui` are also required.
+
 
 Installing with [lazy.nvim](https://github.com/folke/lazy.nvim).
 
@@ -96,17 +103,19 @@ There are also configurable presets: `:Chat1`, `:Chat2`, and `:Chat3`. To quickl
 | complete |  text selection | Asks LLM to complete the selected code directly in the editor. |
 | edit  |  text selection + prompt | Asks LLM to apply the given instructions to the selected code in the editor. |
 | explain  |  text selection | Asks LLM to explain the selected code and return the answer in a text popup. |
-| files  |  "file list" + prompt | Reads multiple local project files (supports wildcards) and passes their content as the context for your prompt. |
-| scan  |  "file list" + < query > + prompt | Performs a hybrid search across local project files for a query and send relevant chunks to the LLM. |
-| wiki  |  search query | Performs a semantic search across your local Knowledge Base using Hierarchical RAG (Map & Territory). |
-| wiki_index  |  none | Scans your Knowledge Base folder and performs a one-pass indexing with LLM-generated summaries and vectors. |
-| wiki_save  |  text selection or none | Saves your current buffer or visual selection into the Knowledge Base for future retrieval.
+| init  |  none | Analyzes the local project and creates an architectural map (`quickLLM.md`) for the context orchestration. |
+| files  |  "file list" + prompt | Reads local project files (supports wildcards) and passes their content as context for the prompt. |
+| scan  |  "file list" + <query> + prompt | Performs a fast literal search or hybrid semantic search (if initialized) across local project files and sends relevant chunks to the LLM. |
+| wiki  |  query | Performs a semantic search across your personal "Wiki" Knowledge Base using Hierarchical RAG. |
+| wiki_index  |  none | Scans your Wiki folder and performs a one-pass indexing with LLM-generated summaries and vectors. |
+| wiki_save  |  text selection or none | Saves current buffer or visual selection into the Wiki Knowledge Base for future retrieval. |
+| wiki_lint  |  none | Runs the Auditor to find isolated notes or 'Shadow Concepts' in the Wiki. |
 | doc  |  text selection | Asks LLM to document the selected code. Updates the text directly in the editor. |
 | tests  |  text selection | Asks LLM to write unit tests for the selected code in the popup window. |
 | opt  |  text selection | Asks LLM to optimize the selected code. Updates the code directly in the editor. |
 | debug  |  text selection | Passes the code selection to LLM to analyze it for bugs, the results will be in a popup. |
 | recall  |  none or number | Displays the last assistant response from the chat history in a popup without altering the history. Optionally accept a number to go further back (e.g., `:Chat recall 2`). |
-| undo  |  none | Removes the last exchange (your prompt and the assistant's response) from the chat history. Useful for reverting a bad conversation turn. |
+| undo  |  none | Removes the last exchange (prompt and the assistant's response) from the chat history. Useful for reverting a bad conversation turn. |
 | clear  |  none | Clears the short-term chat memory to start fresh. |
 | help  |  none | Displays the help guide. |
 
@@ -178,7 +187,7 @@ vim.g.quickllm_show_thinking = true
 Each preset has its own configuration scope. Append `1`, `2`, or `3` to the variables. This is perfect for mapping a preset to a completely different stack.
 
 ```lua
--- Configure :Chat1 to be your "Local Dev" preset
+-- Configure :Chat1 to be a "Local Dev" preset
 vim.g.quickllm_api_provider1 = "ollama"
 vim.g.quickllm_commands_defaults1 = {
     model = "qwen3-coder",
@@ -218,43 +227,92 @@ Note that `"local_grounding"` requires `TAVILY_API_KEY` as an environment variab
 
 QuickLLM includes a local Knowledge Base system designed to transform your Markdown notes into a compounding "Wiki IDE." This architecture is inspired by the **[LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)** concept proposed by Andrej Karpathy, implementing a dual-layer retrieval system (Map and Territory) for high-accuracy semantic discovery.
 
-### Context Engine Commands
-These commands allow you to inject arbitrary file context or search results into any LLM request without bloating chat history context.
+### Context Engine Commands (Project Scope)
+These commands allow you to inject arbitrary local project context or search results into any LLM request without bloating the chat history.
 
-*   `:Chat files "file1.py file2.js *.md" prompt text`: Reads multiple local files (supports wildcards and escaped quotes) and passes their content as the context for your prompt.
-    *   *Tip*: If no prompt is provided, it defaults to the `explain` command for all files.
-*   `:Chat scan "src/*.lua" <query> prompt text`: Performs a hybrid search across local project files for the `<query>` and sends the relevant code chunks to LLM for the analysis.
-    *   *Tip*: If no prompt is provided, it simply displays the search results in a local popup without calling LLM. The result goes to the chat history so the next llm inference is going to see it from there.
-*   `:Chat wiki <query>`: Performs a semantic search across your global Knowledge Base using the Hierarchical RAG architecture.
+*   If you have manually initialized the project with `:Chat init`, QuickLLM creates an architectural map (`quickLLM.md`). The Context Engine will inject this map into the background context of the `files`, `scan`, and `explain` commands to give the LLM better project awareness.
+
+*   `:Chat files "file1.py file2.js *.md" [prompt]`: Reads multiple local files (supports wildcards and escaped quotes) and passes their content as the context for the prompt.
+    *   Note: If no prompt is provided, it defaults to the `explain` command for all files.
+*   `:Chat scan "src/*.lua" <query> [prompt]`: Performs a fast literal search or a hybrid semantic search (if `:Chat init` was run) across local project files for the `<query>` and sends the relevant chunks to the LLM for analysis.
+    *   Note: If no prompt is provided, it simply displays the search results in a local popup without calling the LLM. The result goes to the chat history so the next LLM inference can see it.
 
 ### The "Librarian" Architecture (Map & Territory)
 When running in `complex` mode, QuickLLM employs a dual-layer retrieval strategy:
-1.  The Map (Summaries): Retrieval finds the top relevant documents based on LLM-generated summaries and conceptual schema links.
-2.  The Territory (Chunks): Retrieval finds specific, granular evidence chunks using header-aware semantic splitting.
+1.  **The Map (Summaries)**: Retrieval finds the top relevant documents based on LLM-generated summaries and conceptual schema links.
+2.  **The Territory (Chunks)**: Retrieval finds specific, granular evidence chunks using header-aware semantic splitting.
 
-This ensures LLM understands both the "big picture" (Map) and the "exact data" (Territory) before formulating a response.
+This ensures the LLM understands both the "big picture" (Map) and the "exact data" (Territory) before formulating a response.
 
-### Knowledge Base Management
-*   `:Chat wiki_index`: Scans your Knowledge Base folder and performs a "one-pass" indexing. It uses an LLM to act as a Librarian, generating summaries and schema connections while computing vectors using the selected wiki provider. It includes sha256-based change detection to skip unchanged files.
-*   `:Chat wiki_save filename.md`: Saves your current buffer or visual selection directly into your global Knowledge Base and immediately triggers a background index update for that file.
+*   **The Active Librarian (Self-Healing)**: When you save a note, QuickLLM performs "Autonomous Neighborhood Weaving." It finds the top 5 semantically related files and silently updates them in the background to include back-links and connections to your new note, keeping the Wiki compounding over time.
+
+### Wiki Management (Knowledge Scope)
+These commands operate on your `~/knowledge_base` folder (or another folder of your preference), separate from the local project you're currently working on.
+
+*   `:Chat wiki <query>`: Performs a semantic search across the Wiki Knowledge Base using the Hierarchical RAG architecture.
+*   `:Chat wiki_index`: Scans the Wiki folder and performs a "one-pass" indexing. It uses a local LLM to act as a Librarian, generating summaries and schema connections while computing vectors. It includes sha256-based change detection to skip unchanged files.
+*   `:Chat wiki_save filename.md`: Saves the current buffer or visual selection directly into the Wiki and triggers a background index update for that file.
+*   `:Chat wiki_lint`: Runs the Auditor. It populates Neovim Quickfix list with "Shadow Concepts" (highly similar files with no shared tags) and "Orphan Files" (notes that are never mentioned elsewhere).
+*   `:Chat init`: (Project Scope) Analyzes current project directory and creates a `quickLLM.md` map to enable project specific context orchestration.
 
 ### Configuration
 
-```lua
--- Essential KB Setup
-vim.g.quickllm_kb_folder = "~/notes/wiki"       -- Folder containing your Markdown files
-vim.g.quickllm_kb_sqlite_vec_path = "/path/to/sqlite-vec.so" -- Path to the sqlite-vec extension
-vim.g.quickllm_kb_style = "complex"             -- "simple" (keyword/chunks) or "complex" (Librarian/Hierarchical)
+All Knowledge Base and Project Context settings are unified under `vim.g.quickllm_kb_opts`.
 
--- Advanced Tuning
-vim.g.quickllm_kb_embedding_model = "nomic-embed-text"
-vim.g.quickllm_kb_embedding_dimension = 768    -- Dimension of your local embedding model
-vim.g.quickllm_scan_context = 3                 -- Lines of context around scan matches
+```lua
+vim.g.quickllm_kb_opts = {
+    -- INFRASTRUCTURE
+    db_path = vim.fn.stdpath("data") .. "/quickllm_kb.db", -- SQLite database file
+    sqlite_vec_path = "",        -- Path to the sqlite-vec extension (e.g. /path/to/vec0.so)
+
+    -- WIKI (Knowledge Base)
+    wiki_folder = vim.fn.getcwd() .. "/knowledge_base", -- Your Markdown notes directory
+    style = "complex",           -- "simple" (fast) | "complex" (Hierarchical RAG)
+
+    -- EMBEDDINGS
+    provider = "ollama",         -- Provider for vectors (ollama, openai, gemini)
+    model = "nomic-embed-text",  -- The specific embedding model
+    dimension = 768,             -- Vector size (768 for nomic, 1536 for openai)
+
+    -- PROJECT CONTEXT
+    project_provider = "ollama", -- Provider for local project mapping
+    project_model = "qwen3:8b",  -- Model used for :Chat init
+    auto_init = true,            -- Auto-sync if quickLLM.md is present and stale
+    auto_check_freshness = true, -- Check for structural changes on every scan/files command
+
+    -- ORCHESTRATION (The Librarian)
+    scan_context = 3,            -- Lines of context around scan matches
+    sync_strategy = "auto",      -- "auto" (background weaving) | "manual"
+    neighborhood_size = 5,       -- Number of related files to weave
+}
+
+-- Model Intelligence Strategies
+-- Defines if a provider can handle updating all neighbors in one pass ("god_prompt") 
+-- or if it needs to update them one by one ("lazy").
+vim.g.quickllm_provider_capabilities = {
+    ["anthropic"] = { strategy = "god_prompt" },
+    ["ollama"] = { strategy = "lazy" },
+}
 ```
 
-#### Known Limitations
-*   Regex Chunker: The Knowledge Base uses a line-based regex to split Markdown files by headers (`#`). Comments starting with `#` inside code blocks may occasionally trigger unexpected chunk splits.
-*   SQLite Concurrency: Large indexing operations may briefly lock the database. The system includes an automatic retry mechanism to mitigate this.
+### Vector Search Setup (sqlite-vec)
+
+To enable semantic search for Knowledge Base, download the `sqlite-vec` shared library. This is a small, vector database extension for SQLite.
+
+1.  **Download the Extension**: Get the pre-compiled binary from the **[sqlite-vec releases](https://github.com/asg017/sqlite-vec/releases)**.
+    *   **macOS**: `vec0.dylib`
+    *   **Linux**: `vec0.so`
+    *   **Windows**: `vec0.dll`
+2.  **Configure the Path**: Update `kb_opts` with the absolute path to this file.
+
+```lua
+vim.g.quickllm_kb_opts = {
+    sqlite_vec_path = "/path/to/vec0.dylib", -- Path to downloaded extension
+    -- ... other options
+}
+```
+
+*Note: The `sqlite3` CLI must also be available in `$PATH` for the Knowledge Base to function.*
 
 ## Chat History (short-term memory)
 
@@ -307,7 +365,7 @@ vim.keymap.set("n", "<leader>qc", function() qllm.clear() end)
 
 ### Custom status hooks
 
-You can add custom hooks to update your status line or other ui elements, for example, this code updates the status line colour to yellow while the request is in progress.
+You can add custom hooks to update status line or other ui elements, for example, this code updates the status line colour to yellow while the request is in progress.
 
 ```lua
 vim.g.quickllm_hooks = {

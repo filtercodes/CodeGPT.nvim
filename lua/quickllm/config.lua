@@ -110,25 +110,53 @@ vim.g.quickllm_history_opts = vim.tbl_extend("force", {
     summarize_history = true,
 }, vim.g.quickllm_history_opts or {})
 
--- Knowledge Base (Wiki) Configuration
-vim.g.quickllm_kb_db_path = vim.g.quickllm_kb_db_path or (vim.fn.stdpath("data") .. "/quickllm_kb.db")
-vim.g.quickllm_kb_folder = vim.g.quickllm_kb_folder or (vim.fn.getcwd() .. "/.quickllm_kb")
-vim.g.quickllm_kb_provider = vim.g.quickllm_kb_provider or "ollama"
-vim.g.quickllm_kb_embedding_model = vim.g.quickllm_kb_embedding_model or "nomic-embed-text"
-vim.g.quickllm_kb_embedding_dimension = vim.g.quickllm_kb_embedding_dimension or 768
-vim.g.quickllm_kb_sqlite_vec_path = vim.g.quickllm_kb_sqlite_vec_path or ""
-vim.g.quickllm_kb_style = vim.g.quickllm_kb_style or "simple" -- "simple" or "complex"
+-- Knowledge Base Namespace (Wiki & Project Context)
+local kb_defaults = {
+    -- 1. INFRASTRUCTURE
+    db_path = vim.g.quickllm_kb_db_path or (vim.fn.stdpath("data") .. "/quickllm_kb.db"),
+    sqlite_vec_path = vim.g.quickllm_kb_sqlite_vec_path or "",
 
--- Project Context Configuration
-vim.g.quickllm_project_defaults = {
-    provider = "ollama",         -- Provider for project indexing
-    model = "qwen3:8b",          -- Reasoning model for init
-    auto_init = true,            -- Automatically run init if missing or stale
-    auto_check_freshness = true, -- Check for structural changes on scan/files
+    -- 2. WIKI
+    wiki_folder = vim.g.quickllm_kb_folder or (vim.fn.getcwd() .. "/.quickllm_kb"),
+    style = vim.g.quickllm_kb_style or "simple", -- simple | complex
+
+    -- 3. EMBEDDINGS
+    provider = vim.g.quickllm_kb_provider or "ollama",
+    model = vim.g.quickllm_kb_embedding_model or "nomic-embed-text",
+    dimension = vim.g.quickllm_kb_embedding_dimension or 768,
+
+    -- 4. PROJECT CONTEXT
+    project_provider = (vim.g.quickllm_project_defaults and vim.g.quickllm_project_defaults.provider) or "ollama",
+    project_model = (vim.g.quickllm_project_defaults and vim.g.quickllm_project_defaults.model) or "qwen3:8b",
+    auto_init = true,
+    auto_check_freshness = true,
+
+    -- 5. ORCHESTRATION
+    scan_context = vim.g.quickllm_scan_context or 3,
+    sync_strategy = "auto",      -- "auto" (background) | "manual"
+    neighborhood_size = 5,       -- Number of related files to weave
 }
 
--- Search/Scan Options
-vim.g.quickllm_scan_context = vim.g.quickllm_scan_context or 3
+-- Apply backward compatibility for Project Defaults if they exist
+if vim.g.quickllm_project_defaults then
+    if vim.g.quickllm_project_defaults.auto_init ~= nil then
+        kb_defaults.auto_init = vim.g.quickllm_project_defaults.auto_init
+    end
+    if vim.g.quickllm_project_defaults.auto_check_freshness ~= nil then
+        kb_defaults.auto_check_freshness = vim.g.quickllm_project_defaults.auto_check_freshness
+    end
+end
+
+vim.g.quickllm_kb_opts = vim.tbl_extend("force", kb_defaults, vim.g.quickllm_kb_opts or {})
+
+-- Model Intelligence Strategies (based on provider capabilities)
+vim.g.quickllm_provider_capabilities = {
+    ["openai"] = { strategy = "god_prompt" },
+    ["anthropic"] = { strategy = "god_prompt" },
+    ["gemini"] = { strategy = "god_prompt" },
+    ["ollama"] = { strategy = "lazy" },
+    ["groq"] = { strategy = "lazy" },
+}
 
 -- Default Command Templates
 vim.g.quickllm_commands_defaults = {

@@ -35,10 +35,7 @@ function M.add_message(bufnr, role, content, model, command)
 
     -- Filter out <think> tags and their contents before saving to history
     if role == "assistant" and content then
-        -- Remove everything from <think> to </think> inclusive
-        content = content:gsub("<think>.-</think>", "")
-        -- Trim leading and trailing whitespace/newlines
-        content = content:match("^%s*(.-)%s*$")
+        content = Utils.strip_thinking_tags(content)
     end
 
     local message = {

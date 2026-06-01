@@ -37,6 +37,7 @@ end
 ---Orchestrates the project initialization (:Chat init).
 ---@param callback function? Optional callback for when init is complete.
 function M.init_project(callback)
+    local kb_opts = vim.g.quickllm_kb_opts
     local now = os.time()
     if is_indexing and (now - last_progress_time < 300) then
         vim.notify("Project initialization already in progress.", vim.log.levels.WARN)
@@ -74,9 +75,8 @@ IMPORTANT: Output your response in Markdown format. Start with a metadata block 
 <!-- METADATA: {"hash": "PENDING", "count": 0} -->
 ]], dir_listing, readme_content)
 
-    local defaults = vim.g.quickllm_project_defaults or {}
-    local provider_name = defaults.provider or "ollama"
-    local model_name = defaults.model or "qwen3:8b"
+    local provider_name = kb_opts.project_provider or "ollama"
+    local model_name = kb_opts.project_model or "qwen3:8b"
 
     local Providers = require("quickllm.providers")
     local CommandsList = require("quickllm.commands_list")
@@ -153,9 +153,9 @@ end
 ---Ensures project context is fresh, running init if needed based on auto_init setting.
 ---@param callback function The function to call once context is ready/checked.
 function M.ensure_fresh_context(callback)
-    local defaults = vim.g.quickllm_project_defaults or {}
-    local auto_init = defaults.auto_init ~= false
-    local auto_check = defaults.auto_check_freshness ~= false
+    local kb_opts = vim.g.quickllm_kb_opts
+    local auto_init = kb_opts.auto_init ~= false
+    local auto_check = kb_opts.auto_check_freshness ~= false
 
     if not auto_check then
         callback()

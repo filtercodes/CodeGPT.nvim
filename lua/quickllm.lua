@@ -115,6 +115,13 @@ function QuickllmModule.run_cmd(opts)
         return
     end
 
+    -- Handle `wiki_lint` as a special case
+    if command == "wiki_lint" then
+        local KB = require("quickllm.providers.knowledge_base")
+        KB.wiki_lint()
+        return
+    end
+
     -- Handle `wiki_save` as a special case
     if command == "wiki_save" then
         local KB = require("quickllm.providers.knowledge_base")

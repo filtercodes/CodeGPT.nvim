@@ -13,6 +13,7 @@ local command_descriptions = {
     scan = "Performs a hybrid search (fuzzy/literal) across local project files and sends relevant chunks to the LLM.",
     wiki = "Performs a semantic search across your local Knowledge Base using Hierarchical RAG (Map & Territory).",
     wiki_index = "Scans your KB folder and performs a 'one-pass' indexing with LLM-generated summaries and vectors.",
+    wiki_lint = "Runs the Global Auditor to find 'Shadow Concepts' and 'Orphan Files', populating the Quickfix list.",
     wiki_save = "Saves your current buffer or visual selection directly into the Knowledge Base for future retrieval.",
     doc = "Generates documentation for the selected code. It produces function/method documentation (e.g., Javadoc, Doxygen) following best practices for the language.",
     tests = "Generates unit tests for the selected code. It attempts to use standard testing frameworks appropriate for the language (e.g., JUnit for Java, gtest for C++).",
@@ -47,7 +48,7 @@ function M.get_help_lines()
     local commnds_listed = {
         "chat", "search", "complete", "edit",
         "explain", "files", "scan",
-        "wiki", "wiki_index", "wiki_save",
+        "wiki", "wiki_index", "wiki_save", "wiki_lint",
         "doc", "tests", "opt", "debug",
         "recall", "undo", "clear", "help"
     }
